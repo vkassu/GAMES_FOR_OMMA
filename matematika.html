@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<!--
+  Игра: Математика (5 режимов).
+  Развивающая цель: устный счёт для 2–3 класса.
+  Режимы: сложение и вычитание в пределах 100 (без отрицательных),
+  табличное умножение 2–9, деление нацело (обратное таблице умножения),
+  и «Микс» — случайно одно из четырёх. Слева меню выбора режима.
+  Показывает пример, ребёнок вводит ответ (экранная панель, верхний ряд
+  цифр или правый числовой блок клавиатуры — даже при выключенном Num Lock),
+  хвалит за верный ответ и мягко подсказывает при ошибке.
+  Один самодостаточный файл, работает по двойному клику без сервера.
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Математика">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Математика</title>
+<style>
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;  /* убираем серую вспышку iOS */
+  }
+  html { -webkit-text-size-adjust: 100%; }     /* iOS не раздувает шрифт */
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: #1f2937;
+    background: linear-gradient(135deg, #e0f2fe, #fdf2f8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+    /* без выделения текста и меню при удержании пальца */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  /* мгновенный тап без зума по двойному касанию и без задержки 300 мс */
+  button, .back { touch-action: manipulation; }
+  .top {
+    width: 100%;
+    max-width: 880px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .back {
+    text-decoration: none;
+    color: #7c3aed;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .counters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .stars, .streak, .record {
+    font-size: 20px;
+    font-weight: 700;
+    background: #fff;
+    border-radius: 999px;
+    padding: 8px 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .streak { color: #ea580c; }
+  .record { color: #ca8a04; }
+  .layout {
+    display: flex;
+    gap: 22px;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+    max-width: 880px;
+    flex-wrap: wrap;
+  }
+  .menu {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+  .mode {
+    font-family: inherit;
+    font-size: 19px;
+    font-weight: 700;
+    text-align: left;
+    padding: 16px 22px;
+    border-radius: 16px;
+    border: 3px solid #c4b5fd;
+    background: #fff;
+    color: #1f2937;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.08s ease, background 0.08s ease;
+  }
+  @media (hover: hover) { .mode:hover { background: #f5f3ff; } }
+  .mode:active { transform: scale(0.97); }
+  .mode.active {
+    background: #7c3aed;
+    color: #fff;
+    border-color: #7c3aed;
+  }
+  .card {
+    background: #fff;
+    border-radius: 28px;
+    padding: 40px 32px;
+    flex: 1 1 360px;
+    max-width: 520px;
+    text-align: center;
+    box-shadow: 0 12px 30px rgba(124, 58, 237, 0.15);
+  }
+  .problem {
+    font-size: clamp(44px, 11vw, 72px);
+    font-weight: 800;
+    letter-spacing: 2px;
+    margin: 8px 0 28px;
+  }
+  .answer {
+    font-size: 44px;
+    text-align: center;
+    width: 180px;
+    padding: 12px;
+    border: 4px solid #c4b5fd;
+    border-radius: 18px;
+    outline: none;
+    font-family: inherit;
+  }
+  .answer:focus { border-color: #7c3aed; }
+  .btn {
+    display: block;
+    margin: 24px auto 0;
+    font-size: 26px;
+    font-weight: 700;
+    font-family: inherit;
+    color: #fff;
+    background: #7c3aed;
+    border: none;
+    border-radius: 18px;
+    padding: 16px 44px;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.1s ease;
+  }
+  @media (hover: hover) { .btn:hover { background: #6d28d9; } }
+  .btn:active { transform: scale(0.96); }
+  .entry {
+    display: flex;
+    gap: 28px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .numpad {
+    display: grid;
+    grid-template-columns: repeat(3, 72px);
+    gap: 10px;
+  }
+  .key {
+    font-size: 30px;
+    font-weight: 700;
+    font-family: inherit;
+    padding: 16px 0;
+    color: #1f2937;
+    background: #fff;
+    border: 3px solid #c4b5fd;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.08s ease;
+  }
+  @media (hover: hover) { .key:hover { background: #f5f3ff; } }
+  .key:active { transform: scale(0.93); }
+  .key-wide { grid-column: span 2; }
+  .key-back { color: #d97706; }
+  .feedback {
+    min-height: 40px;
+    margin-top: 22px;
+    font-size: 26px;
+    font-weight: 700;
+  }
+  .ok { color: #16a34a; }
+  .try { color: #d97706; }
+  .hint { color: #6b7280; font-size: 20px; font-weight: 600; }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+  .pop { animation: pop 0.35s ease; }
+  @media (max-width: 680px) {
+    .menu { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+    .mode { font-size: 16px; padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+  <div class="top">
+    <a class="back" href="index.html">← К играм</a>
+    <div class="counters">
+      <div class="streak" id="streak">🔥 0 подряд</div>
+      <div class="record" id="record">🏆 0 рекорд</div>
+      <div class="stars" id="stars">⭐ 0</div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <nav class="menu" id="menu">
+      <button class="mode active" data-mode="add">➕ Сложение</button>
+      <button class="mode" data-mode="sub">➖ Вычитание</button>
+      <button class="mode" data-mode="mul">✖️ Умножение</button>
+      <button class="mode" data-mode="div">➗ Деление</button>
+      <button class="mode" data-mode="mix">🎲 Микс</button>
+    </nav>
+
+    <div class="card">
+      <div class="problem" id="problem">— + — = ?</div>
+      <div class="entry">
+        <input class="answer" id="answer" type="text" inputmode="numeric"
+               autocomplete="off" pattern="[0-9]*" aria-label="Твой ответ" readonly>
+        <div class="numpad" id="numpad">
+          <button class="key" data-d="7">7</button>
+          <button class="key" data-d="8">8</button>
+          <button class="key" data-d="9">9</button>
+          <button class="key" data-d="4">4</button>
+          <button class="key" data-d="5">5</button>
+          <button class="key" data-d="6">6</button>
+          <button class="key" data-d="1">1</button>
+          <button class="key" data-d="2">2</button>
+          <button class="key" data-d="3">3</button>
+          <button class="key key-wide" data-d="0">0</button>
+          <button class="key key-back" id="backBtn" aria-label="Стереть">⌫</button>
+        </div>
+      </div>
+      <button class="btn" id="checkBtn">Проверить</button>
+      <div class="feedback" id="feedback"></div>
+    </div>
+  </div>
+
+<script>
+  "use strict";
+
+  var problemEl  = document.getElementById("problem");
+  var answerEl   = document.getElementById("answer");
+  var checkBtn   = document.getElementById("checkBtn");
+  var feedbackEl = document.getElementById("feedback");
+  var starsEl    = document.getElementById("stars");
+  var streakEl   = document.getElementById("streak");
+  var recordEl   = document.getElementById("record");
+  var cardEl     = document.querySelector(".card");
+  var menuEl     = document.getElementById("menu");
+
+  var mode = "add";          // активный режим
+  var current = null;        // { text, ans } текущего примера
+  var stars = 0;
+  var streak = 0;            // правильных ответов подряд
+  var best = 0;              // рекорд серии
+  var attempts = 0;
+
+  // Рекорд по возможности сохраняется между запусками; при открытии файла
+  // напрямую (file://) localStorage может быть недоступен — тогда рекорд
+  // живёт в рамках сессии.
+  try {
+    best = parseInt(localStorage.getItem("matematika_best"), 10) || 0;
+  } catch (e) { best = 0; }
+  recordEl.textContent = "🏆 " + best + " рекорд";
+
+  var praise = ["Молодец! 🎉", "Верно! ⭐", "Супер! 👍",
+                "Ты умница! 🌟", "Здорово! 🎈", "Точно! ✨"];
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  // Генераторы примеров. Сложность — 2–3 класс.
+  function genAdd() {                       // сумма в пределах 100
+    var x = randInt(2, 90);
+    var y = randInt(2, 100 - x);
+    return { text: x + " + " + y, ans: x + y };
+  }
+  function genSub() {                       // в пределах 100, результат > 0
+    var x = randInt(11, 100);
+    var y = randInt(2, x - 1);
+    return { text: x + " − " + y, ans: x - y };
+  }
+  function genMul() {                       // таблица 2–9
+    var x = randInt(2, 9), y = randInt(2, 9);
+    return { text: x + " × " + y, ans: x * y };
+  }
+  function genDiv() {                       // деление нацело, ответ 2–9
+    var q = randInt(2, 9), d = randInt(2, 9);
+    return { text: (q * d) + " ÷ " + d, ans: q };
+  }
+  var gens = { add: genAdd, sub: genSub, mul: genMul, div: genDiv };
+  function genMix() {
+    var keys = ["add", "sub", "mul", "div"];
+    return gens[keys[randInt(0, 3)]]();
+  }
+  gens.mix = genMix;
+
+  function newProblem() {
+    current = gens[mode]();
+    attempts = 0;
+    problemEl.textContent = current.text + " = ?";
+    answerEl.value = "";
+    answerEl.focus();
+  }
+
+  // Короткий приятный звук на верный ответ — без внешних файлов.
+  // Один общий AudioContext: iOS ограничивает их число и создаёт
+  // приостановленным, поэтому переиспользуем его и каждый раз resume()
+  // внутри пользовательского жеста, иначе на айфоне звук пропадает.
+  var audioCtx = null;
+  function playHappy() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioCtx) audioCtx = new Ctx();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var ctx = audioCtx;
+      var notes = [659, 784, 988]; // ми — соль — си
+      notes.forEach(function (freq, i) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        var t = ctx.currentTime + i * 0.12;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.2);
+      });
+    } catch (e) { /* звук необязателен */ }
+  }
+
+  function showFeedback(text, cls) {
+    feedbackEl.textContent = text;
+    feedbackEl.className = "feedback " + cls;
+  }
+
+  function check() {
+    var raw = answerEl.value.trim();
+    if (raw === "") {
+      answerEl.focus();
+      return;
+    }
+    var value = parseInt(raw, 10);
+
+    if (value === current.ans) {
+      stars++;
+      streak++;
+      starsEl.textContent = "⭐ " + stars;
+      streakEl.textContent = "🔥 " + streak + " подряд";
+      if (streak > best) {
+        best = streak;
+        recordEl.textContent = "🏆 " + best + " рекорд";
+        try { localStorage.setItem("matematika_best", best); } catch (e) {}
+      }
+      showFeedback(praise[randInt(0, praise.length - 1)], "ok");
+      playHappy();
+      cardEl.classList.remove("pop");
+      void cardEl.offsetWidth;        // перезапуск анимации
+      cardEl.classList.add("pop");
+      checkBtn.disabled = true;
+      setTimeout(function () {
+        checkBtn.disabled = false;
+        showFeedback("", "");
+        newProblem();
+      }, 1100);
+    } else {
+      attempts++;
+      streak = 0;
+      streakEl.textContent = "🔥 0 подряд";
+      if (attempts >= 3) {
+        showFeedback(current.text + " = " + current.ans +
+                     ". Запомним и идём дальше 🙂", "hint");
+        checkBtn.disabled = true;
+        setTimeout(function () {
+          checkBtn.disabled = false;
+          showFeedback("", "");
+          newProblem();
+        }, 2600);
+      } else {
+        showFeedback("Почти! Попробуй ещё разок 🙂", "try");
+        answerEl.value = "";
+        answerEl.focus();
+      }
+    }
+  }
+
+  // Выбор режима в левом меню. Звёзды копятся независимо от режима.
+  menuEl.addEventListener("click", function (e) {
+    var btn = e.target.closest(".mode");
+    if (!btn) return;
+    mode = btn.getAttribute("data-mode");
+    var all = menuEl.querySelectorAll(".mode");
+    for (var i = 0; i < all.length; i++) all[i].classList.remove("active");
+    btn.classList.add("active");
+    checkBtn.disabled = false;
+    showFeedback("", "");
+    newProblem();
+  });
+
+  // Экранная цифровая панель (раскладка как справа на клавиатуре).
+  function appendDigit(d) {
+    if (checkBtn.disabled) return;          // не вводим во время паузы
+    if (answerEl.value.length >= 3) return; // ответ не длиннее 3 цифр
+    answerEl.value += d;
+    if (feedbackEl.classList.contains("try")) showFeedback("", "");
+    answerEl.focus();
+  }
+
+  function backspace() {
+    if (checkBtn.disabled) return;
+    answerEl.value = answerEl.value.slice(0, -1);
+    answerEl.focus();
+  }
+
+  document.getElementById("numpad").addEventListener("click", function (e) {
+    var btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.id === "backBtn") backspace();
+    else appendDigit(btn.getAttribute("data-d"));
+  });
+
+  checkBtn.addEventListener("click", check);
+
+  // Достаём цифру по ФИЗИЧЕСКОМУ коду клавиши: правый числовой блок
+  // (Numpad0–Numpad9) работает даже при выключенном Num Lock, когда e.key
+  // был бы "End"/"Home"/стрелкой. Заодно поддерживаем верхний ряд цифр.
+  function keyDigit(e) {
+    if (/^Numpad[0-9]$/.test(e.code)) return e.code.slice(6);
+    if (/^Digit[0-9]$/.test(e.code))  return e.code.slice(5);
+    if (/^[0-9]$/.test(e.key))        return e.key;
+    return null;
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "A") return;   // не мешаем ссылке «К играм»
+
+    var d = keyDigit(e);
+    if (d !== null) { e.preventDefault(); appendDigit(d); return; }
+
+    if (e.key === "Enter" || e.code === "NumpadEnter") {
+      e.preventDefault(); check(); return;
+    }
+    if (e.key === "Backspace" || e.code === "Delete" ||
+        e.code === "NumpadDecimal") {
+      e.preventDefault(); backspace(); return;
+    }
+  });
+
+  newProblem();
+</script>
+</body>
+</html>

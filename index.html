@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Игры для Оммы</title>
+<style>
+  :root {
+    --bg1: #fdf2f8;
+    --bg2: #e0f2fe;
+    --card: #ffffff;
+    --text: #1f2937;
+    --accent: #7c3aed;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 48px;
+  }
+  h1 {
+    font-size: clamp(28px, 6vw, 44px);
+    margin: 12px 0 4px;
+    text-align: center;
+  }
+  .subtitle {
+    color: #6b7280;
+    font-size: clamp(15px, 3vw, 19px);
+    margin-bottom: 28px;
+    text-align: center;
+  }
+  .games {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 760px;
+  }
+  .game-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--card);
+    border-radius: 22px;
+    padding: 26px 22px;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 8px 22px rgba(124, 58, 237, 0.12);
+    border: 3px solid transparent;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+  .game-card:hover, .game-card:focus-visible {
+    transform: translateY(-4px);
+    border-color: var(--accent);
+    outline: none;
+  }
+  .game-emoji { font-size: 52px; line-height: 1; }
+  .game-title { font-size: 24px; font-weight: 700; }
+  .game-desc { color: #6b7280; font-size: 15px; }
+</style>
+</head>
+<body>
+  <h1>🎮 Игры для Оммы</h1>
+  <p class="subtitle">Выбери игру и нажми на неё</p>
+
+  <div class="games">
+    <a class="game-card" href="matematika.html">
+      <span class="game-emoji">🧮</span>
+      <span class="game-title">Математика</span>
+      <span class="game-desc">Сложение, вычитание, умножение, деление и микс</span>
+    </a>
+  </div>
+</body>
+</html>
