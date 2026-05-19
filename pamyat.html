@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<!--
+  Игра: Память («Парочки»).
+  Развивающая цель: зрительная память и внимание для ребёнка 8–9 лет.
+  Карточки лежат рубашкой вверх. Открываешь две: совпали — пара остаётся
+  открытой, не совпали — мягко закрываются обратно. Цель — собрать все пары.
+  Три уровня (слева меню): Лёгкий 6 пар, Средний 8 пар, Сложный 12 пар.
+  Считаем ходы; рекорд — наименьшее число ходов для уровня, по возможности
+  сохраняется между запусками (localStorage; при file:// — на сессию).
+  Один самодостаточный файл, работает по двойному клику без сервера.
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Память">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Память</title>
+<style>
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;  /* убираем серую вспышку iOS */
+  }
+  html { -webkit-text-size-adjust: 100%; }     /* iOS не раздувает шрифт */
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: #1f2937;
+    background: linear-gradient(135deg, #e0f2fe, #fdf2f8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  button, .back { touch-action: manipulation; } /* мгновенный тап без зума */
+  .top {
+    width: 100%;
+    max-width: 880px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .back {
+    text-decoration: none;
+    color: #7c3aed;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .counters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pairs, .moves, .record {
+    font-size: 18px;
+    font-weight: 700;
+    background: #fff;
+    border-radius: 999px;
+    padding: 8px 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .moves { color: #ea580c; }
+  .record { color: #ca8a04; }
+  .pairs { color: #7c3aed; }
+  .layout {
+    display: flex;
+    gap: 22px;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+    max-width: 880px;
+    flex-wrap: wrap;
+  }
+  .menu {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+  .mode {
+    font-family: inherit;
+    font-size: 19px;
+    font-weight: 700;
+    text-align: left;
+    padding: 16px 22px;
+    border-radius: 16px;
+    border: 3px solid #c4b5fd;
+    background: #fff;
+    color: #1f2937;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.08s ease, background 0.08s ease;
+  }
+  @media (hover: hover) { .mode:hover { background: #f5f3ff; } }
+  .mode:active { transform: scale(0.97); }
+  .mode.active {
+    background: #7c3aed;
+    color: #fff;
+    border-color: #7c3aed;
+  }
+  .card {
+    background: #fff;
+    border-radius: 28px;
+    padding: 24px;
+    flex: 1 1 360px;
+    max-width: 560px;
+    text-align: center;
+    box-shadow: 0 12px 30px rgba(124, 58, 237, 0.15);
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 4), 1fr);
+    gap: 10px;
+    margin: 0 auto;
+    max-width: var(--bw, 420px);
+  }
+  /* Одна карточка. Переворот по оси Y, две стороны. */
+  .cell {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border: none;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    perspective: 600px;
+  }
+  .cell-inner {
+    position: absolute;
+    inset: 0;
+    transition: transform 0.32s ease;
+    transform-style: preserve-3d;
+    -webkit-transform-style: preserve-3d;
+  }
+  .cell.flipped .cell-inner { transform: rotateY(180deg); }
+  .face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .face.back {
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    color: #fff;
+    font-size: clamp(26px, 7vw, 40px);
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+  }
+  .face.front {
+    background: #fff;
+    border: 3px solid #c4b5fd;
+    font-size: clamp(30px, 8.5vw, 52px);
+    transform: rotateY(180deg);
+  }
+  .cell.matched .face.front {
+    border-color: #16a34a;
+    background: #f0fdf4;
+    box-shadow: 0 0 0 3px #16a34a inset;
+  }
+  .cell.matched { cursor: default; }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+  .cell.matched .cell-inner { animation: pop 0.35s ease; }
+  .btn {
+    display: inline-block;
+    margin: 22px auto 0;
+    font-size: 22px;
+    font-weight: 700;
+    font-family: inherit;
+    color: #fff;
+    background: #7c3aed;
+    border: none;
+    border-radius: 16px;
+    padding: 14px 36px;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.1s ease;
+  }
+  @media (hover: hover) { .btn:hover { background: #6d28d9; } }
+  .btn:active { transform: scale(0.96); }
+  .feedback {
+    min-height: 36px;
+    margin-top: 16px;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .ok  { color: #16a34a; }
+  .try { color: #d97706; }
+  .win { color: #7c3aed; }
+  @media (max-width: 680px) {
+    .menu { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+    .mode { font-size: 16px; padding: 12px 16px; }
+    .card { padding: 16px; }
+    /* На телефоне всегда 4 столбца — карточки крупные, удобно пальцу. */
+    .board { --cols: 4 !important; --bw: 100% !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="top">
+    <a class="back" href="index.html">← К играм</a>
+    <div class="counters">
+      <div class="pairs"  id="pairs">💎 0 / 0</div>
+      <div class="moves"  id="moves">🎯 0 ходов</div>
+      <div class="record" id="record">🏆 — рекорд</div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <nav class="menu" id="menu">
+      <button class="mode active" data-mode="easy">🙂 Лёгкий</button>
+      <button class="mode" data-mode="medium">😎 Средний</button>
+      <button class="mode" data-mode="hard">🤓 Сложный</button>
+      <button class="mode" data-mode="veryhard">🥵 Очень сложный</button>
+      <button class="mode" data-mode="impossible">😱 Невозможный</button>
+    </nav>
+
+    <div class="card">
+      <div class="board" id="board"></div>
+      <button class="btn" id="newBtn">Новая игра 🔄</button>
+      <div class="feedback" id="feedback"></div>
+    </div>
+  </div>
+
+<script>
+  "use strict";
+
+  var boardEl    = document.getElementById("board");
+  var pairsEl    = document.getElementById("pairs");
+  var movesEl    = document.getElementById("moves");
+  var recordEl   = document.getElementById("record");
+  var feedbackEl = document.getElementById("feedback");
+  var newBtn     = document.getElementById("newBtn");
+  var menuEl     = document.getElementById("menu");
+
+  // Дружелюбные, хорошо различимые для ребёнка картинки.
+  var EMOJI = ["🐶","🐱","🦊","🐰","🐼","🐨","🦁","🐯","🐸","🐵",
+               "🦄","🐝","🦋","🐢","🐬","🐙","🦀","🐠","🐧","🦉",
+               "🐷","🐮","🐔","🦓","🦒","🦘","🦔","🐳","🦈","🦩",
+               "🦜","🐞"];
+
+  // Уровни: число пар, столбцов и ширина поля на широком экране.
+  var MODES = {
+    easy:       { pairs: 6,  cols: 4, bw: 340 },
+    medium:     { pairs: 8,  cols: 4, bw: 380 },
+    hard:       { pairs: 12, cols: 6, bw: 520 },
+    veryhard:   { pairs: 16, cols: 8, bw: 620 },
+    impossible: { pairs: 20, cols: 8, bw: 700 }
+  };
+
+  var mode = "easy";
+  var deck = [];          // массив эмодзи по позициям
+  var firstIdx = -1;      // индекс первой открытой карточки в ходе
+  var lock = false;       // пауза, пока сравниваем две карточки
+  var matched = 0;        // сколько пар уже собрано
+  var moves = 0;          // число ходов (пар открытых карточек)
+  var totalPairs = 0;
+
+  var praise = ["Пара! 🎉", "Нашла! ⭐", "Точно! 👍",
+                "Супер! 🌟", "Здорово! 🎈", "Молодец! ✨"];
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function shuffle(arr) {                 // тасование Фишера–Йетса
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = randInt(0, i);
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  // Рекорд хранится отдельно по каждому уровню. На file:// localStorage
+  // может быть недоступен — тогда рекорд живёт только в этой сессии.
+  var sessionBest = {};
+  function bestKey(m) { return "pamyat_best_" + m; }
+  function getBest(m) {
+    try {
+      var v = parseInt(localStorage.getItem(bestKey(m)), 10);
+      if (v) return v;
+    } catch (e) {}
+    return sessionBest[m] || 0;
+  }
+  function setBest(m, v) {
+    sessionBest[m] = v;
+    try { localStorage.setItem(bestKey(m), v); } catch (e) {}
+  }
+
+  function showRecord() {
+    var b = getBest(mode);
+    recordEl.textContent = b ? ("🏆 " + b + " ходов рекорд")
+                             : "🏆 — рекорд";
+  }
+
+  function showFeedback(text, cls) {
+    feedbackEl.textContent = text;
+    feedbackEl.className = "feedback " + (cls || "");
+  }
+
+  // Короткий приятный звук — без внешних файлов. Один общий AudioContext:
+  // iOS создаёт его приостановленным, поэтому resume() в жесте пользователя.
+  var audioCtx = null;
+  function beep(notes) {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioCtx) audioCtx = new Ctx();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var ctx = audioCtx;
+      notes.forEach(function (freq, i) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        var t = ctx.currentTime + i * 0.12;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.2);
+      });
+    } catch (e) { /* звук необязателен */ }
+  }
+  function playMatch() { beep([659, 784]); }            // ми — соль
+  function playWin()   { beep([659, 784, 988, 1175]); } // радостная трель
+
+  function updateCounters() {
+    pairsEl.textContent = "💎 " + matched + " / " + totalPairs;
+    movesEl.textContent = "🎯 " + moves + " ходов";
+  }
+
+  function buildBoard() {
+    var cfg = MODES[mode];
+    totalPairs = cfg.pairs;
+    matched = 0;
+    moves = 0;
+    firstIdx = -1;
+    lock = false;
+    showFeedback("", "");
+
+    boardEl.style.setProperty("--cols", cfg.cols);
+    boardEl.style.setProperty("--bw", cfg.bw + "px");
+
+    var pool = shuffle(EMOJI.slice()).slice(0, cfg.pairs);
+    deck = shuffle(pool.concat(pool));   // каждая картинка дважды
+
+    boardEl.innerHTML = "";
+    for (var i = 0; i < deck.length; i++) {
+      var cell = document.createElement("button");
+      cell.className = "cell";
+      cell.setAttribute("data-i", i);
+      cell.setAttribute("aria-label", "Карточка");
+      cell.innerHTML =
+        '<div class="cell-inner">' +
+          '<div class="face back">?</div>' +
+          '<div class="face front">' + deck[i] + '</div>' +
+        '</div>';
+      boardEl.appendChild(cell);
+    }
+    updateCounters();
+    showRecord();
+  }
+
+  function onWin() {
+    var b = getBest(mode);
+    var msg;
+    if (!b || moves < b) {
+      setBest(mode, moves);
+      msg = "Новый рекорд! " + moves + " ходов 🏆";
+    } else {
+      msg = "Все пары собраны! 🎉";
+    }
+    showRecord();
+    showFeedback(msg, "win");
+    playWin();
+  }
+
+  function flipCell(cell) { cell.classList.add("flipped"); }
+  function unflipCell(cell) { cell.classList.remove("flipped"); }
+
+  boardEl.addEventListener("click", function (e) {
+    var cell = e.target.closest(".cell");
+    if (!cell || lock) return;
+    if (cell.classList.contains("flipped")) return;   // уже открыта
+    if (cell.classList.contains("matched")) return;   // уже собрана
+
+    flipCell(cell);
+    var idx = parseInt(cell.getAttribute("data-i"), 10);
+
+    if (firstIdx === -1) {            // открыта первая карточка хода
+      firstIdx = idx;
+      return;
+    }
+
+    // открыта вторая — это ход
+    moves++;
+    updateCounters();
+    var firstCell = boardEl.querySelector('.cell[data-i="' + firstIdx + '"]');
+    var a = firstIdx, b = idx;
+    firstIdx = -1;
+
+    if (deck[a] === deck[b]) {                 // совпали
+      lock = true;
+      setTimeout(function () {
+        firstCell.classList.add("matched");
+        cell.classList.add("matched");
+        matched++;
+        updateCounters();
+        playMatch();
+        if (matched === totalPairs) {
+          onWin();
+        } else {
+          showFeedback(praise[randInt(0, praise.length - 1)], "ok");
+        }
+        lock = false;
+      }, 320);
+    } else {                                   // не совпали — закрываем
+      lock = true;
+      showFeedback("Не пара. Попробуй ещё 🙂", "try");
+      setTimeout(function () {
+        unflipCell(firstCell);
+        unflipCell(cell);
+        showFeedback("", "");
+        lock = false;
+      }, 950);
+    }
+  });
+
+  // Выбор уровня сложности в левом меню.
+  menuEl.addEventListener("click", function (e) {
+    var btn = e.target.closest(".mode");
+    if (!btn) return;
+    mode = btn.getAttribute("data-mode");
+    var all = menuEl.querySelectorAll(".mode");
+    for (var i = 0; i < all.length; i++) all[i].classList.remove("active");
+    btn.classList.add("active");
+    buildBoard();
+  });
+
+  newBtn.addEventListener("click", buildBoard);
+
+  buildBoard();
+</script>
+</body>
+</html>

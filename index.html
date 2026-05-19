@@ -2,7 +2,11 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Игры для Оммы">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Игры для Оммы</title>
 <style>
   :root {
@@ -12,7 +16,11 @@
     --text: #1f2937;
     --accent: #7c3aed;
   }
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;  /* убираем серую вспышку iOS */
+  }
+  html { -webkit-text-size-adjust: 100%; }     /* iOS не раздувает шрифт */
   body {
     margin: 0;
     min-height: 100vh;
@@ -23,6 +31,10 @@
     flex-direction: column;
     align-items: center;
     padding: 32px 16px 48px;
+    /* без выделения текста и меню при удержании пальца */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
   h1 {
     font-size: clamp(28px, 6vw, 44px);
@@ -54,12 +66,22 @@
     box-shadow: 0 8px 22px rgba(124, 58, 237, 0.12);
     border: 3px solid transparent;
     transition: transform 0.12s ease, border-color 0.12s ease;
+    touch-action: manipulation;          /* мгновенный тап без зума */
   }
-  .game-card:hover, .game-card:focus-visible {
+  /* подсветка наведением — только на устройствах с мышью, иначе
+     на iPhone эффект «залипает» после тапа по карточке */
+  @media (hover: hover) {
+    .game-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent);
+    }
+  }
+  .game-card:focus-visible {
     transform: translateY(-4px);
     border-color: var(--accent);
     outline: none;
   }
+  .game-card:active { transform: scale(0.98); }
   .game-emoji { font-size: 52px; line-height: 1; }
   .game-title { font-size: 24px; font-weight: 700; }
   .game-desc { color: #6b7280; font-size: 15px; }
@@ -74,6 +96,11 @@
       <span class="game-emoji">🧮</span>
       <span class="game-title">Математика</span>
       <span class="game-desc">Сложение, вычитание, умножение, деление и микс</span>
+    </a>
+    <a class="game-card" href="pamyat.html">
+      <span class="game-emoji">🧠</span>
+      <span class="game-title">Память</span>
+      <span class="game-desc">Парочки: открывай карточки и находи пары</span>
     </a>
   </div>
 </body>
