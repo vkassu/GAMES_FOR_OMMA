@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<!--
+  Игра «Найди лишнее» — развивающая цель: ЛОГИКА и КЛАССИФИКАЦИЯ.
+  Ребёнок учится находить общий признак у группы и замечать предмет,
+  который из этой группы выпадает. 15 заданий, 3 блока по сложности:
+  1) эмодзи и очевидные категории, 2) слова, 3) ловушки со смешением.
+  Чистый HTML/CSS/JS, один файл, офлайн, работает по file:// и на iOS.
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Найди лишнее">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Найди лишнее</title>
+<style>
+  :root {
+    --bg1: #fef3c7;
+    --bg2: #ddd6fe;
+    --card: #ffffff;
+    --text: #1f2937;
+    --accent: #7c3aed;
+    --good: #22c55e;
+    --good-bg: #dcfce7;
+  }
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;  /* убираем серую вспышку iOS */
+  }
+  html { -webkit-text-size-adjust: 100%; }     /* iOS не раздувает шрифт */
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    /* без выделения текста и меню при удержании пальца */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .screen { width: 100%; max-width: 640px; text-align: center; }
+  .hidden { display: none; }
+
+  h1 { font-size: clamp(30px, 7vw, 48px); margin: 0 0 10px; }
+  .lead { color: #4b5563; font-size: clamp(16px, 3.6vw, 21px); margin: 0 0 28px; }
+
+  .btn {
+    display: inline-block;
+    border: none;
+    border-radius: 18px;
+    padding: 16px 34px;
+    font-size: clamp(18px, 4vw, 24px);
+    font-weight: 700;
+    font-family: inherit;
+    color: #fff;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(124, 58, 237, 0.30);
+    touch-action: manipulation;          /* мгновенный тап без зума */
+    text-decoration: none;
+  }
+  .btn.secondary {
+    background: #fff;
+    color: var(--accent);
+    box-shadow: 0 6px 16px rgba(124, 58, 237, 0.16);
+  }
+  @media (hover: hover) {
+    .btn:hover { filter: brightness(1.05); }
+  }
+  .btn:active { transform: scale(0.97); }
+
+  /* ---- игровой экран ---- */
+  .progress {
+    font-size: clamp(15px, 3.4vw, 19px);
+    color: #6b7280;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .question {
+    font-size: clamp(20px, 4.6vw, 28px);
+    font-weight: 700;
+    margin-bottom: 22px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .opt {
+    background: var(--card);
+    border: 4px solid transparent;
+    border-radius: 22px;
+    padding: 22px 12px;
+    min-height: 116px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(124, 58, 237, 0.12);
+    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+    touch-action: manipulation;
+    word-break: break-word;
+  }
+  .opt .face { font-size: clamp(26px, 6vw, 36px); }
+  .opt.big .face { font-size: clamp(52px, 13vw, 78px); }
+  @media (hover: hover) {
+    .opt:hover { transform: translateY(-3px); border-color: var(--accent); }
+  }
+  .opt:active { transform: scale(0.97); }
+  .opt.correct {
+    background: var(--good-bg);
+    border-color: var(--good);
+    animation: pop 0.4s ease;
+  }
+  .opt.wrong { animation: shake 0.45s ease; }
+  .opt.locked { pointer-events: none; }
+  .opt.dim { opacity: 0.45; }
+
+  @keyframes pop {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.10); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-9px); }
+    40% { transform: translateX(9px); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+
+  .feedback {
+    min-height: 64px;
+    margin-top: 20px;
+    font-size: clamp(19px, 4.2vw, 25px);
+    font-weight: 700;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.retry { color: #d97706; }
+  .why {
+    font-size: clamp(15px, 3.4vw, 19px);
+    font-weight: 600;
+    color: #4b5563;
+    margin-top: 6px;
+  }
+  .next-wrap { min-height: 70px; margin-top: 16px; }
+
+  .final-emoji { font-size: 72px; margin-bottom: 6px; }
+  .stars {
+    font-size: clamp(40px, 11vw, 64px);
+    letter-spacing: 6px;
+    margin: 8px 0 4px;
+    animation: pop 0.5s ease;
+  }
+  .score-line {
+    font-size: clamp(17px, 3.8vw, 22px);
+    color: #4b5563;
+    font-weight: 700;
+    margin: 8px 0 26px;
+  }
+  .final-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+  <!-- Экран старта -->
+  <div id="startScreen" class="screen">
+    <div class="final-emoji">🔍</div>
+    <h1>Найди лишнее</h1>
+    <p class="lead">Из четырёх — три похожи, а один лишний.<br>Найди его и нажми!</p>
+    <button class="btn" id="startBtn">Начать 🚀</button>
+  </div>
+
+  <!-- Игровой экран -->
+  <div id="gameScreen" class="screen hidden">
+    <div class="progress" id="progress">Задание 1 из 15</div>
+    <div class="question">Что здесь лишнее?</div>
+    <div class="grid" id="grid"></div>
+    <div class="feedback" id="feedback"></div>
+    <div class="next-wrap" id="nextWrap"></div>
+  </div>
+
+  <!-- Финальный экран -->
+  <div id="endScreen" class="screen hidden">
+    <div class="final-emoji">🌟</div>
+    <h1 id="endTitle">Молодец!</h1>
+    <div class="stars" id="stars"></div>
+    <p class="lead" id="endSummary">Ты прошла все 15 заданий!</p>
+    <p class="score-line" id="scoreLine"></p>
+    <div class="final-buttons">
+      <button class="btn" id="againBtn">Играть ещё раз 🔁</button>
+      <a class="btn secondary" href="index.html">В меню</a>
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+/* ---------- Данные: 15 заданий, 3 блока по сложности ---------- */
+/* answer — индекс лишнего элемента в исходном массиве items.
+   big — true для блоков с эмодзи (крупный шрифт). */
+const QUESTIONS = [
+  // Блок 1 — эмодзи, очевидные категории
+  { items: ['🐶','🐱','🐟','🍕'], answer: 3, big: true,  why: 'Пицца — это еда, а не животное.' },
+  { items: ['🍎','🍌','🍇','🚗'], answer: 3, big: true,  why: 'Машина — это не фрукт.' },
+  { items: ['🔴','🔵','🟡','🔺'], answer: 3, big: true,  why: 'Треугольник — не круг, а остальные круглые.' },
+  { items: ['🐝','🦋','🐞','🌷'], answer: 3, big: true,  why: 'Тюльпан — это цветок, а остальные — насекомые.' },
+  { items: ['🚗','🚌','🚲','🏠'], answer: 3, big: true,  why: 'Дом — это не транспорт.' },
+
+  // Блок 2 — слова, чуть сложнее
+  { items: ['Роза','Ромашка','Тюльпан','Берёза'],            answer: 3, why: 'Берёза — это дерево, а остальные — цветы.' },
+  { items: ['Январь','Март','Пятница','Апрель'],             answer: 2, why: 'Пятница — это день недели, а остальные — месяцы.' },
+  { items: ['3','6','9','8'],                                 answer: 3, why: '8 не делится на 3 без остатка.' },
+  { items: ['Яблоко','Груша','Морковь','Слива'],             answer: 2, why: 'Морковь — это овощ, а остальные — фрукты.' },
+  { items: ['Круг','Квадрат','Треугольник','Красный'],       answer: 3, why: 'Красный — это цвет, а остальные — фигуры.' },
+
+  // Блок 3 — ловушки, смешанные
+  { items: ['🐋','🐬','🦈','🐸'], answer: 3, big: true, why: 'Лягушка живёт не в море. Кит, дельфин и акула — морские.' },
+  { items: ['Лёд','Снег','Град','Дождь'],                    answer: 3, why: 'Дождь — жидкий, а лёд, снег и град — твёрдые.' },
+  { items: ['Гитара','Скрипка','Барабан','Кисточка'],        answer: 3, why: 'Кисточкой рисуют, остальное — музыкальные инструменты.' },
+  { items: ['Лето','Зима','Осень','Ноябрь'],                 answer: 3, why: 'Ноябрь — это месяц, а остальные — времена года.' },
+  { items: ['2','4','7','8'],                                 answer: 2, why: '7 — нечётное, а 2, 4 и 8 — чётные.' },
+];
+
+/* ---------- Звук: один переиспользуемый AudioContext (правило iOS) ---------- */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freqs, dur, type) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  freqs.forEach((f, i) => {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type || 'sine';
+    o.frequency.value = f;
+    const t0 = now + i * 0.12;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  });
+}
+const playGood  = () => tone([523.25, 659.25, 783.99], 0.22);          // до-ми-соль вверх
+const playRetry = () => tone([330, 247], 0.16, 'triangle');            // мягко вниз, не резко
+
+/* ---------- Логика игры ---------- */
+const startScreen = document.getElementById('startScreen');
+const gameScreen  = document.getElementById('gameScreen');
+const endScreen   = document.getElementById('endScreen');
+const gridEl      = document.getElementById('grid');
+const progressEl  = document.getElementById('progress');
+const feedbackEl  = document.getElementById('feedback');
+const nextWrapEl  = document.getElementById('nextWrap');
+const scoreLineEl = document.getElementById('scoreLine');
+const starsEl     = document.getElementById('stars');
+const endTitleEl  = document.getElementById('endTitle');
+const endSummaryEl= document.getElementById('endSummary');
+
+let order = [];          // порядок заданий (перемешан)
+let pos = 0;             // текущая позиция в order
+let firstTryCount = 0;   // решено с первой попытки
+let triedThis = false;   // была ли уже ошибка в текущем задании
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function startGame() {
+  ensureAudio();                       // разблокировка звука внутри жеста
+  order = shuffle(QUESTIONS.map((_, i) => i));
+  pos = 0;
+  firstTryCount = 0;
+  startScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  gameScreen.classList.remove('hidden');
+  renderQuestion();
+}
+
+function renderQuestion() {
+  triedThis = false;
+  feedbackEl.textContent = '';
+  feedbackEl.className = 'feedback';
+  nextWrapEl.innerHTML = '';
+
+  const q = QUESTIONS[order[pos]];
+  progressEl.textContent = 'Задание ' + (pos + 1) + ' из ' + QUESTIONS.length;
+
+  // перемешиваем позиции вариантов, помним, где теперь правильный «лишний»
+  const idx = shuffle(q.items.map((_, i) => i));
+  gridEl.innerHTML = '';
+  idx.forEach((origIndex) => {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'opt' + (q.big ? ' big' : '');
+    const face = document.createElement('span');
+    face.className = 'face';
+    face.textContent = q.items[origIndex];
+    cell.appendChild(face);
+    cell.addEventListener('click', () => onPick(cell, origIndex === q.answer, q));
+    gridEl.appendChild(cell);
+  });
+}
+
+function onPick(cell, isCorrect, q) {
+  ensureAudio();
+  if (isCorrect) {
+    cell.classList.add('correct', 'locked');
+    // блокируем остальные карточки
+    [...gridEl.children].forEach((c) => {
+      c.classList.add('locked');
+      if (c !== cell) c.classList.add('dim');
+    });
+    if (!triedThis) firstTryCount++;
+    playGood();
+    feedbackEl.textContent = 'Молодец! 🎉';
+    feedbackEl.className = 'feedback good';
+    const why = document.createElement('div');
+    why.className = 'why';
+    why.textContent = q.why;
+    feedbackEl.appendChild(why);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn';
+    nextBtn.textContent = (pos + 1 < QUESTIONS.length) ? 'Дальше ▶' : 'Закончить ✓';
+    nextBtn.addEventListener('click', goNext);
+    nextWrapEl.innerHTML = '';
+    nextWrapEl.appendChild(nextBtn);
+  } else {
+    triedThis = true;
+    playRetry();
+    cell.classList.remove('wrong');
+    void cell.offsetWidth;            // перезапуск анимации покачивания
+    cell.classList.add('wrong');
+    feedbackEl.textContent = 'Попробуй ещё раз 🙂';
+    feedbackEl.className = 'feedback retry';
+  }
+}
+
+function goNext() {
+  pos++;
+  if (pos < QUESTIONS.length) {
+    renderQuestion();
+  } else {
+    showEnd();
+  }
+}
+
+function showEnd() {
+  gameScreen.classList.add('hidden');
+  endScreen.classList.remove('hidden');
+
+  const total = QUESTIONS.length;
+  // звёзды по числу заданий, решённых с первой попытки (мягко, без «проигрыша»)
+  let stars, title, summary;
+  if (firstTryCount >= 13) {
+    stars = '⭐⭐⭐'; title = 'Превосходно!';
+    summary = 'Почти всё с первой попытки — ты настоящий знаток!';
+  } else if (firstTryCount >= 9) {
+    stars = '⭐⭐'; title = 'Здорово!';
+    summary = 'Очень хороший результат. Ещё разок — и будет три звёздочки!';
+  } else {
+    stars = '⭐'; title = 'Молодец!';
+    summary = 'Ты прошла все задания. Чем больше играешь — тем легче!';
+  }
+  endTitleEl.textContent = title;
+  starsEl.textContent = stars;
+  endSummaryEl.textContent = summary;
+  scoreLineEl.textContent = 'С первой попытки: ' + firstTryCount + ' из ' + total;
+  playGood();
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', startGame);
+</script>
+</body>
+</html>
