@@ -1,9 +1,16 @@
 <!DOCTYPE html>
 <!--
   Игра «Найди лишнее» — развивающая цель: ЛОГИКА и КЛАССИФИКАЦИЯ.
-  Ребёнок учится находить общий признак у группы и замечать предмет,
-  который из этой группы выпадает. 15 заданий, 3 блока по сложности:
-  1) эмодзи и очевидные категории, 2) слова, 3) ловушки со смешением.
+  Ребёнок учится находить общий признак у группы и замечать предмет
+  или слово, которое из неё выпадает. Пять типов заданий:
+    1) «Найди лишнее»   — выбери, что не подходит;
+    2) «Найди похожее»  — сверху картинка, подбери из той же категории;
+    3) «Что общего?»    — выбери категорию, объединяющую три предмета;
+    4) «Что дальше?»    — продолжи ряд;
+    5) «Ответь на вопрос» — конкретный вопрос про предметы или слова.
+  Банк 100 задач, разбит на 3 уровня сложности (level: 1 лёгкий,
+  2 средний, 3 сложный). Перед стартом ребёнок выбирает уровень;
+  каждая игра — 15 случайных задач выбранного уровня, повторяется редко.
   Чистый HTML/CSS/JS, один файл, офлайн, работает по file:// и на iOS.
 -->
 <html lang="ru">
@@ -77,6 +84,11 @@
   }
   .btn:active { transform: scale(0.97); }
 
+  /* ---- выбор уровня на старте ---- */
+  .levels { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  .level-btn { width: 280px; max-width: 100%; }
+  .level-hint { font-size: clamp(13px, 3vw, 16px); font-weight: 600; opacity: 0.85; }
+
   /* ---- игровой экран ---- */
   .progress {
     font-size: clamp(15px, 3.4vw, 19px);
@@ -87,8 +99,33 @@
   .question {
     font-size: clamp(20px, 4.6vw, 28px);
     font-weight: 700;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
   }
+  /* Подсказка над сеткой: одна крупная картинка ИЛИ ряд из нескольких. */
+  .prompt {
+    margin: 0 auto 18px;
+    text-align: center;
+    line-height: 1;
+  }
+  .prompt:empty { display: none; }
+  .prompt.prompt-big {
+    font-size: clamp(56px, 14vw, 84px);
+  }
+  .prompt.prompt-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: var(--card);
+    border-radius: 22px;
+    padding: 14px 20px;
+    box-shadow: 0 8px 20px rgba(124, 58, 237, 0.12);
+    max-width: 100%;
+  }
+  .pf { font-size: clamp(22px, 5vw, 32px); font-weight: 700; }
+  .pf.big { font-size: clamp(40px, 9vw, 60px); }
+
   .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -173,18 +210,23 @@
 </head>
 <body>
 
-  <!-- Экран старта -->
+  <!-- Экран старта: выбор уровня -->
   <div id="startScreen" class="screen">
     <div class="final-emoji">🔍</div>
     <h1>Найди лишнее</h1>
-    <p class="lead">Из четырёх — три похожи, а один лишний.<br>Найди его и нажми!</p>
-    <button class="btn" id="startBtn">Начать 🚀</button>
+    <p class="lead">Выбери уровень — и поехали!</p>
+    <div class="levels">
+      <button class="btn level-btn" data-level="1">🙂 Лёгкий</button>
+      <button class="btn level-btn" data-level="2">😎 Средний</button>
+      <button class="btn level-btn" data-level="3">🤓 Сложный</button>
+    </div>
   </div>
 
   <!-- Игровой экран -->
   <div id="gameScreen" class="screen hidden">
     <div class="progress" id="progress">Задание 1 из 15</div>
-    <div class="question">Что здесь лишнее?</div>
+    <div class="question" id="question">Что здесь лишнее?</div>
+    <div class="prompt" id="prompt"></div>
     <div class="grid" id="grid"></div>
     <div class="feedback" id="feedback"></div>
     <div class="next-wrap" id="nextWrap"></div>
@@ -195,10 +237,11 @@
     <div class="final-emoji">🌟</div>
     <h1 id="endTitle">Молодец!</h1>
     <div class="stars" id="stars"></div>
-    <p class="lead" id="endSummary">Ты прошла все 15 заданий!</p>
+    <p class="lead" id="endSummary">Ты прошла все задания!</p>
     <p class="score-line" id="scoreLine"></p>
     <div class="final-buttons">
       <button class="btn" id="againBtn">Играть ещё раз 🔁</button>
+      <button class="btn secondary" id="changeLevelBtn">Выбрать уровень 🎚️</button>
       <a class="btn secondary" href="index.html">В меню</a>
     </div>
   </div>
@@ -206,31 +249,144 @@
 <script>
 "use strict";
 
-/* ---------- Данные: 15 заданий, 3 блока по сложности ---------- */
-/* answer — индекс лишнего элемента в исходном массиве items.
-   big — true для блоков с эмодзи (крупный шрифт). */
+/* ---------- Данные: банк из 100 заданий, 3 уровня ----------
+   Каждое задание описано полями:
+     level   — 1 (лёгкий), 2 (средний), 3 (сложный);
+     type    — 'odd' | 'match' | 'common' | 'sequence' | 'attribute';
+     q       — вопрос над сеткой;
+     prompt  — что показать НАД сеткой (опционально):
+                 { kind:'big', items:['🐶'] }                — одна крупная картинка;
+                 { kind:'row', items:[...], big:true|false } — ряд предметов/слов;
+     items   — 4 варианта ответа в сетке;
+     answer  — индекс правильного варианта (до перемешивания);
+     big     — true → крупный размер эмодзи в сетке;
+     why     — короткое пояснение, показывается после правильного ответа.
+   В каждой игре берётся GAME_SIZE случайных задач выбранного уровня.
+*/
 const QUESTIONS = [
-  // Блок 1 — эмодзи, очевидные категории
-  { items: ['🐶','🐱','🐟','🍕'], answer: 3, big: true,  why: 'Пицца — это еда, а не животное.' },
-  { items: ['🍎','🍌','🍇','🚗'], answer: 3, big: true,  why: 'Машина — это не фрукт.' },
-  { items: ['🔴','🔵','🟡','🔺'], answer: 3, big: true,  why: 'Треугольник — не круг, а остальные круглые.' },
-  { items: ['🐝','🦋','🐞','🌷'], answer: 3, big: true,  why: 'Тюльпан — это цветок, а остальные — насекомые.' },
-  { items: ['🚗','🚌','🚲','🏠'], answer: 3, big: true,  why: 'Дом — это не транспорт.' },
+  /* ===================== УРОВЕНЬ 1 — ЛЁГКИЙ (33) ===================== */
+  // — Найди лишнее
+  { level:1, type:'odd', q:'Что здесь лишнее?', items:['🐶','🐱','🐟','🍕'], answer:3, big:true, why:'Пицца — это еда, а не животное.' },
+  { level:1, type:'odd', q:'Что здесь лишнее?', items:['🍎','🍌','🍇','🚗'], answer:3, big:true, why:'Машина — это не фрукт.' },
+  { level:1, type:'odd', q:'Что здесь лишнее?', items:['🔴','🔵','🟡','🔺'], answer:3, big:true, why:'Треугольник — не круг, а остальные круглые.' },
+  { level:1, type:'odd', q:'Что здесь лишнее?', items:['🐝','🦋','🐞','🌷'], answer:3, big:true, why:'Тюльпан — это цветок, а остальные — насекомые.' },
+  { level:1, type:'odd', q:'Что здесь лишнее?', items:['🚗','🚌','🚲','🏠'], answer:3, big:true, why:'Дом — это не транспорт.' },
+  { level:1, type:'odd', q:'Что здесь лишнее?', items:['🐶','🐱','🐰','🌳'], answer:3, big:true, why:'Дерево — это не животное.' },
+  { level:1, type:'odd', q:'Что здесь лишнее?', items:['⚽','🏀','🎾','🍎'], answer:3, big:true, why:'Яблоко — это не мяч.' },
+  { level:1, type:'odd', q:'Что здесь лишнее?', items:['🌷','🌹','🌻','🐝'], answer:3, big:true, why:'Пчела — это насекомое, а остальные — цветы.' },
+  // — Найди похожее
+  { level:1, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🐶']}, items:['🐱','🚗','🌳','☂️'], answer:0, big:true, why:'Кот и собака — домашние животные.' },
+  { level:1, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🍎']}, items:['🍌','🥕','🚗','☂️'], answer:0, big:true, why:'Яблоко и банан — фрукты.' },
+  { level:1, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🚗']}, items:['🚌','🌳','🐘','🍕'], answer:0, big:true, why:'Машина и автобус — транспорт.' },
+  { level:1, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🎸']}, items:['🥁','🎨','🚲','🍕'], answer:0, big:true, why:'Гитара и барабан — музыкальные инструменты.' },
+  { level:1, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['⚽']}, items:['🏀','🪑','🐘','🌷'], answer:0, big:true, why:'Футбольный и баскетбольный — мячи.' },
+  { level:1, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🌷']}, items:['🌹','🌳','🐶','⛅'], answer:0, big:true, why:'Тюльпан и роза — цветы.' },
+  // — Что общего?
+  { level:1, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['🍎','🍌','🍇'],big:true}, items:['Фрукты','Овощи','Цветы','Птицы'], answer:0, big:false, why:'Яблоко, банан и виноград — фрукты.' },
+  { level:1, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['🐶','🐱','🐰'],big:true}, items:['Животные','Деревья','Числа','Фигуры'], answer:0, big:false, why:'Собака, кот и кролик — животные.' },
+  { level:1, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['🔴','🔵','🟢'],big:true}, items:['Круги','Треугольники','Числа','Буквы'], answer:0, big:false, why:'Все три — круги разного цвета.' },
+  { level:1, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['🚗','🚌','🚲'],big:true}, items:['Транспорт','Игрушки','Еда','Звуки'], answer:0, big:false, why:'Это всё — транспорт.' },
+  { level:1, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['🌷','🌹','🌻'],big:true}, items:['Цветы','Деревья','Грибы','Камни'], answer:0, big:false, why:'Тюльпан, роза и подсолнух — цветы.' },
+  { level:1, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['🐝','🦋','🐞'],big:true}, items:['Насекомые','Птицы','Цветы','Рыбы'], answer:0, big:false, why:'Пчела, бабочка и божья коровка — насекомые.' },
+  // — Что дальше?
+  { level:1, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['🔴','🔵','🔴','🔵','❓'],big:true}, items:['🔴','🔵','🟡','🟢'], answer:0, big:true, why:'Красный и синий чередуются.' },
+  { level:1, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['1','2','3','4','❓'],big:true}, items:['5','6','7','8'], answer:0, big:false, why:'Числа идут по одному.' },
+  { level:1, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['🔺','🔵','🔺','🔵','❓'],big:true}, items:['🔺','🔵','🟢','⬛'], answer:0, big:true, why:'Треугольник и круг чередуются.' },
+  { level:1, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['А','Б','В','Г','❓'],big:true}, items:['Д','Е','Ж','А'], answer:0, big:false, why:'Буквы алфавита по порядку.' },
+  { level:1, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['2','4','6','8','❓'],big:true}, items:['10','9','11','12'], answer:0, big:false, why:'Каждый раз прибавляем 2.' },
+  { level:1, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['🐶','🐱','🐶','🐱','❓'],big:true}, items:['🐶','🐱','🐰','🐯'], answer:0, big:true, why:'Собака и кот чередуются.' },
+  // — Ответь на вопрос
+  { level:1, type:'attribute', q:'Кто живёт в воде?', items:['🐶','🐱','🐟','🐰'], answer:2, big:true, why:'Рыбы живут в воде.' },
+  { level:1, type:'attribute', q:'Что можно есть?', items:['🍎','🚗','🪑','☂️'], answer:0, big:true, why:'Яблоко — это еда.' },
+  { level:1, type:'attribute', q:'Чем рисуют?', items:['🖌️','🪥','🍴','⌚'], answer:0, big:true, why:'Кисточкой рисуют.' },
+  { level:1, type:'attribute', q:'Что бывает зимой?', items:['☀️','❄️','🌷','🌻'], answer:1, big:true, why:'Снежинка — зимой.' },
+  { level:1, type:'attribute', q:'Кто умеет летать?', items:['🐦','🐟','🐘','🐢'], answer:0, big:true, why:'Птица умеет летать.' },
+  { level:1, type:'attribute', q:'Что светит ночью?', items:['🌙','☀️','🌳','🏠'], answer:0, big:true, why:'Луна светит ночью.' },
+  { level:1, type:'attribute', q:'Что круглое?', items:['⚽','📚','🪑','🚪'], answer:0, big:true, why:'Мяч — круглый.' },
 
-  // Блок 2 — слова, чуть сложнее
-  { items: ['Роза','Ромашка','Тюльпан','Берёза'],            answer: 3, why: 'Берёза — это дерево, а остальные — цветы.' },
-  { items: ['Январь','Март','Пятница','Апрель'],             answer: 2, why: 'Пятница — это день недели, а остальные — месяцы.' },
-  { items: ['3','6','9','8'],                                 answer: 3, why: '8 не делится на 3 без остатка.' },
-  { items: ['Яблоко','Груша','Морковь','Слива'],             answer: 2, why: 'Морковь — это овощ, а остальные — фрукты.' },
-  { items: ['Круг','Квадрат','Треугольник','Красный'],       answer: 3, why: 'Красный — это цвет, а остальные — фигуры.' },
+  /* ===================== УРОВЕНЬ 2 — СРЕДНИЙ (33) ===================== */
+  // — Найди лишнее
+  { level:2, type:'odd', q:'Что здесь лишнее?', items:['Роза','Ромашка','Тюльпан','Берёза'], answer:3, big:false, why:'Берёза — это дерево, а остальные — цветы.' },
+  { level:2, type:'odd', q:'Что здесь лишнее?', items:['Январь','Март','Пятница','Апрель'], answer:2, big:false, why:'Пятница — это день недели, а остальные — месяцы.' },
+  { level:2, type:'odd', q:'Что здесь лишнее?', items:['Яблоко','Груша','Морковь','Слива'], answer:2, big:false, why:'Морковь — это овощ, а остальные — фрукты.' },
+  { level:2, type:'odd', q:'Что здесь лишнее?', items:['Круг','Квадрат','Треугольник','Красный'], answer:3, big:false, why:'Красный — это цвет, а остальные — фигуры.' },
+  { level:2, type:'odd', q:'Что здесь лишнее?', items:['Лето','Зима','Осень','Ноябрь'], answer:3, big:false, why:'Ноябрь — это месяц, а остальные — времена года.' },
+  { level:2, type:'odd', q:'Что здесь лишнее?', items:['Гитара','Скрипка','Барабан','Кисточка'], answer:3, big:false, why:'Кисточкой рисуют, остальное — музыкальные инструменты.' },
+  { level:2, type:'odd', q:'Что здесь лишнее?', items:['Корова','Коза','Овца','Волк'], answer:3, big:false, why:'Волк — дикий, а остальные — домашние животные.' },
+  { level:2, type:'odd', q:'Что здесь лишнее?', items:['Стол','Стул','Шкаф','Яблоко'], answer:3, big:false, why:'Яблоко — это фрукт, а остальное — мебель.' },
+  // — Найди похожее
+  { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🐝']}, items:['🐞','🐦','🌷','🐠'], answer:0, big:true, why:'Пчела и божья коровка — насекомые (птица тут лишняя).' },
+  { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🐟']}, items:['🐠','🐦','🐱','🚗'], answer:0, big:true, why:'Это всё рыбы.' },
+  { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🍅']}, items:['🥕','🍎','🚗','🐶'], answer:0, big:true, why:'Помидор и морковь — овощи.' },
+  { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['📚']}, items:['📓','🪥','🍴','⌚'], answer:0, big:true, why:'Книга и тетрадь — для учёбы.' },
+  { level:2, type:'match', q:'К какому слову подходит?', prompt:{kind:'row',items:['Москва'],big:true}, items:['Париж','Россия','Волга','Школа'], answer:0, big:false, why:'Москва и Париж — города.' },
+  { level:2, type:'match', q:'К какому слову подходит?', prompt:{kind:'row',items:['Корова'],big:true}, items:['Коза','Волк','Стол','Берёза'], answer:0, big:false, why:'Корова и коза — домашние животные.' },
+  // — Что общего?
+  { level:2, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['🐬','🐳','🦈'],big:true}, items:['Морские животные','Птицы','Насекомые','Деревья'], answer:0, big:false, why:'Дельфин, кит и акула живут в море.' },
+  { level:2, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['2','4','6'],big:true}, items:['Чётные числа','Нечётные числа','Буквы','Месяцы'], answer:0, big:false, why:'2, 4 и 6 — чётные числа.' },
+  { level:2, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Январь','Март','Июнь'],big:false}, items:['Месяцы','Дни недели','Цвета','Времена года'], answer:0, big:false, why:'Это всё — месяцы года.' },
+  { level:2, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Пн','Ср','Пт'],big:true}, items:['Дни недели','Месяцы','Времена года','Праздники'], answer:0, big:false, why:'Понедельник, среда и пятница — дни недели.' },
+  { level:2, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Корова','Коза','Овца'],big:false}, items:['Домашние животные','Дикие животные','Птицы','Рыбы'], answer:0, big:false, why:'Их держат дома, на ферме.' },
+  { level:2, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Стол','Стул','Шкаф'],big:false}, items:['Мебель','Посуда','Одежда','Транспорт'], answer:0, big:false, why:'Стол, стул и шкаф — мебель.' },
+  { level:2, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Россия','Франция','Япония'],big:false}, items:['Страны','Города','Реки','Горы'], answer:0, big:false, why:'Это всё — страны.' },
+  // — Что дальше?
+  { level:2, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['1','3','5','7','❓'],big:true}, items:['9','8','10','11'], answer:0, big:false, why:'Нечётные числа подряд.' },
+  { level:2, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['10','20','30','40','❓'],big:true}, items:['50','45','60','55'], answer:0, big:false, why:'Прибавляем по 10.' },
+  { level:2, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['Пн','Вт','Ср','Чт','❓'],big:true}, items:['Пт','Сб','Вс','Пн'], answer:0, big:false, why:'Дни недели по порядку.' },
+  { level:2, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['5','10','15','20','❓'],big:true}, items:['25','22','30','21'], answer:0, big:false, why:'Прибавляем по 5.' },
+  { level:2, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['3','6','9','12','❓'],big:true}, items:['15','14','18','16'], answer:0, big:false, why:'Прибавляем по 3.' },
+  { level:2, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['🐝','🦋','🐞','🐝','🦋','❓'],big:true}, items:['🐞','🐝','🦋','🐢'], answer:0, big:true, why:'Тройка повторяется: пчела — бабочка — божья коровка.' },
+  // — Ответь на вопрос
+  { level:2, type:'attribute', q:'Какое число чётное?', items:['3','7','8','9'], answer:2, big:false, why:'8 делится на 2 без остатка.' },
+  { level:2, type:'attribute', q:'Какое слово начинается на букву М?', items:['Кот','Мышь','Лес','Дом'], answer:1, big:false, why:'«Мышь» — на букву М.' },
+  { level:2, type:'attribute', q:'Какое число круглое (десяток)?', items:['7','10','11','13'], answer:1, big:false, why:'10 — ровно один десяток.' },
+  { level:2, type:'attribute', q:'Какой фрукт жёлтый?', items:['Яблоко','Банан','Слива','Вишня'], answer:1, big:false, why:'Банан — жёлтый.' },
+  { level:2, type:'attribute', q:'Какое слово обозначает цвет?', items:['Стол','Синий','Бегать','Кот'], answer:1, big:false, why:'«Синий» — это цвет.' },
+  { level:2, type:'attribute', q:'Сколько лап у кошки?', items:['2','4','6','8'], answer:1, big:false, why:'У кошки 4 лапы.' },
 
-  // Блок 3 — ловушки, смешанные
-  { items: ['🐋','🐬','🦈','🐸'], answer: 3, big: true, why: 'Лягушка живёт не в море. Кит, дельфин и акула — морские.' },
-  { items: ['Лёд','Снег','Град','Дождь'],                    answer: 3, why: 'Дождь — жидкий, а лёд, снег и град — твёрдые.' },
-  { items: ['Гитара','Скрипка','Барабан','Кисточка'],        answer: 3, why: 'Кисточкой рисуют, остальное — музыкальные инструменты.' },
-  { items: ['Лето','Зима','Осень','Ноябрь'],                 answer: 3, why: 'Ноябрь — это месяц, а остальные — времена года.' },
-  { items: ['2','4','7','8'],                                 answer: 2, why: '7 — нечётное, а 2, 4 и 8 — чётные.' },
+  /* ===================== УРОВЕНЬ 3 — СЛОЖНЫЙ (34) ===================== */
+  // — Найди лишнее
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['3','6','9','8'], answer:3, big:false, why:'8 не делится на 3 без остатка.' },
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['2','4','7','8'], answer:2, big:false, why:'7 — нечётное, а 2, 4 и 8 — чётные.' },
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['🐋','🐬','🦈','🐸'], answer:3, big:true, why:'Лягушка живёт не в море. Кит, дельфин и акула — морские.' },
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['Лёд','Снег','Град','Дождь'], answer:3, big:false, why:'Дождь — жидкий, а лёд, снег и град — твёрдые.' },
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['10','15','20','23'], answer:3, big:false, why:'23 не делится на 5.' },
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['Воробей','Орёл','Сова','Летучая мышь'], answer:3, big:false, why:'Летучая мышь — зверь, а остальные — птицы.' },
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['Молоток','Отвёртка','Пила','Карандаш'], answer:3, big:false, why:'Карандашом пишут, остальное — инструменты.' },
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['Квадрат','Круг','Треугольник','Куб'], answer:3, big:false, why:'Куб — объёмная фигура, а остальные плоские.' },
+  { level:3, type:'odd', q:'Что здесь лишнее?', items:['Бежать','Прыгать','Плыть','Стол'], answer:3, big:false, why:'«Стол» — предмет, а остальное — действия.' },
+  // — Найди похожее
+  { level:3, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🐬']}, items:['🐳','🐟','🦈','🦀'], answer:0, big:true, why:'Дельфин и кит — морские млекопитающие, а не рыбы.' },
+  { level:3, type:'match', q:'К какому слову подходит?', prompt:{kind:'row',items:['Квадрат'],big:true}, items:['Прямоугольник','Круг','Шар','Линия'], answer:0, big:false, why:'У квадрата и прямоугольника по 4 угла.' },
+  { level:3, type:'match', q:'К какому слову подходит?', prompt:{kind:'row',items:['Берёза'],big:true}, items:['Дуб','Роза','Гриб','Трава'], answer:0, big:false, why:'Берёза и дуб — деревья.' },
+  { level:3, type:'match', q:'К какому слову подходит?', prompt:{kind:'row',items:['Волк'],big:true}, items:['Лиса','Корова','Собака','Кролик'], answer:0, big:false, why:'Волк и лиса — дикие животные.' },
+  { level:3, type:'match', q:'К какому слову подходит?', prompt:{kind:'row',items:['Гитара'],big:true}, items:['Скрипка','Барабан','Флейта','Бубен'], answer:0, big:false, why:'Гитара и скрипка — струнные инструменты.' },
+  { level:3, type:'match', q:'Какое число подходит к этому?', prompt:{kind:'row',items:['9'],big:true}, items:['6','4','7','11'], answer:0, big:false, why:'9 и 6 делятся на 3.' },
+  // — Что общего?
+  { level:3, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['3','6','9'],big:true}, items:['Делятся на 3','Делятся на 5','Чётные','Нечётные'], answer:0, big:false, why:'3, 6 и 9 делятся на 3.' },
+  { level:3, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['5','10','15'],big:true}, items:['Делятся на 5','Делятся на 3','Нечётные','Простые'], answer:0, big:false, why:'5, 10 и 15 делятся на 5.' },
+  { level:3, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Воробей','Орёл','Сова'],big:false}, items:['Птицы','Насекомые','Звери','Рыбы'], answer:0, big:false, why:'Воробей, орёл и сова — птицы.' },
+  { level:3, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Берёза','Дуб','Сосна'],big:false}, items:['Деревья','Цветы','Кусты','Травы'], answer:0, big:false, why:'Берёза, дуб и сосна — деревья.' },
+  { level:3, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Квадрат','Круг','Треугольник'],big:false}, items:['Фигуры','Цвета','Числа','Буквы'], answer:0, big:false, why:'Это всё — геометрические фигуры.' },
+  { level:3, type:'common', q:'Что у них общего?', prompt:{kind:'row',items:['Россия','Китай','Бразилия'],big:false}, items:['Страны','Города','Реки','Континенты'], answer:0, big:false, why:'Это всё — страны.' },
+  // — Что дальше?
+  { level:3, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['1','2','4','8','❓'],big:true}, items:['16','10','12','9'], answer:0, big:false, why:'Каждое число в 2 раза больше предыдущего.' },
+  { level:3, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['1','4','9','16','❓'],big:true}, items:['25','20','24','18'], answer:0, big:false, why:'1×1, 2×2, 3×3, 4×4, 5×5 = 25.' },
+  { level:3, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['3','6','12','24','❓'],big:true}, items:['48','30','36','27'], answer:0, big:false, why:'Каждое число в 2 раза больше предыдущего.' },
+  { level:3, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['А','В','Д','❓'],big:true}, items:['Ж','Е','З','И'], answer:0, big:false, why:'Берём каждую вторую букву: А, В, Д, Ж.' },
+  { level:3, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['100','90','80','70','❓'],big:true}, items:['60','65','50','75'], answer:0, big:false, why:'Каждый раз отнимаем 10.' },
+  { level:3, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['1','1','2','3','5','❓'],big:true}, items:['8','6','7','10'], answer:0, big:false, why:'Каждое число — сумма двух предыдущих (3 + 5 = 8).' },
+  { level:3, type:'sequence', q:'Что идёт дальше?', prompt:{kind:'row',items:['2','5','8','11','❓'],big:true}, items:['14','13','15','12'], answer:0, big:false, why:'Прибавляем по 3.' },
+  // — Ответь на вопрос
+  { level:3, type:'attribute', q:'Какое число делится на 5?', items:['12','25','17','33'], answer:1, big:false, why:'25 = 5 × 5, делится на 5.' },
+  { level:3, type:'attribute', q:'Какое слово — это действие (глагол)?', items:['Дом','Бегать','Красный','Стол'], answer:1, big:false, why:'«Бегать» — это глагол, действие.' },
+  { level:3, type:'attribute', q:'Какое слово во множественном числе?', items:['Кот','Коты','Кошка','Котёнок'], answer:1, big:false, why:'«Коты» — это много котов.' },
+  { level:3, type:'attribute', q:'Какое число нечётное?', items:['4','6','7','10'], answer:2, big:false, why:'7 не делится на 2 без остатка.' },
+  { level:3, type:'attribute', q:'Какое слово — признак (прилагательное)?', items:['Стол','Бежать','Высокий','Кот'], answer:2, big:false, why:'«Высокий» описывает признак предмета.' },
+  { level:3, type:'attribute', q:'Сколько будет 6 × 2?', items:['8','10','12','14'], answer:2, big:false, why:'6 × 2 = 12.' },
 ];
+
+const LEVEL_NAMES = { 1: 'Лёгкий', 2: 'Средний', 3: 'Сложный' };
 
 /* ---------- Звук: один переиспользуемый AudioContext (правило iOS) ---------- */
 let audioCtx = null;
@@ -261,11 +417,15 @@ const playGood  = () => tone([523.25, 659.25, 783.99], 0.22);          // до-�
 const playRetry = () => tone([330, 247], 0.16, 'triangle');            // мягко вниз, не резко
 
 /* ---------- Логика игры ---------- */
+const GAME_SIZE = 15;          // сколько заданий показываем за одну игру
+
 const startScreen = document.getElementById('startScreen');
 const gameScreen  = document.getElementById('gameScreen');
 const endScreen   = document.getElementById('endScreen');
 const gridEl      = document.getElementById('grid');
 const progressEl  = document.getElementById('progress');
+const questionEl  = document.getElementById('question');
+const promptEl    = document.getElementById('prompt');
 const feedbackEl  = document.getElementById('feedback');
 const nextWrapEl  = document.getElementById('nextWrap');
 const scoreLineEl = document.getElementById('scoreLine');
@@ -273,10 +433,11 @@ const starsEl     = document.getElementById('stars');
 const endTitleEl  = document.getElementById('endTitle');
 const endSummaryEl= document.getElementById('endSummary');
 
-let order = [];          // порядок заданий (перемешан)
+let order = [];          // индексы заданий текущей игры (перемешаны, обрезаны)
 let pos = 0;             // текущая позиция в order
 let firstTryCount = 0;   // решено с первой попытки
 let triedThis = false;   // была ли уже ошибка в текущем задании
+let currentLevel = 1;    // выбранный уровень сложности
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -287,9 +448,18 @@ function shuffle(arr) {
   return a;
 }
 
-function startGame() {
+function showStart() {
+  gameScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+}
+
+function startGame(level) {
   ensureAudio();                       // разблокировка звука внутри жеста
-  order = shuffle(QUESTIONS.map((_, i) => i));
+  currentLevel = level;
+  // Берём только задания выбранного уровня и выбираем GAME_SIZE случайных.
+  const pool = QUESTIONS.map((_, i) => i).filter((i) => QUESTIONS[i].level === level);
+  order = shuffle(pool).slice(0, GAME_SIZE);
   pos = 0;
   firstTryCount = 0;
   startScreen.classList.add('hidden');
@@ -305,9 +475,28 @@ function renderQuestion() {
   nextWrapEl.innerHTML = '';
 
   const q = QUESTIONS[order[pos]];
-  progressEl.textContent = 'Задание ' + (pos + 1) + ' из ' + QUESTIONS.length;
+  progressEl.textContent = LEVEL_NAMES[currentLevel] + ' · Задание ' + (pos + 1) + ' из ' + order.length;
+  questionEl.textContent = q.q || 'Что здесь лишнее?';
 
-  // перемешиваем позиции вариантов, помним, где теперь правильный «лишний»
+  // Подсказка над сеткой: одна большая картинка («match») или ряд («common»/«sequence»).
+  promptEl.className = 'prompt';
+  promptEl.innerHTML = '';
+  if (q.prompt) {
+    if (q.prompt.kind === 'big') {
+      promptEl.classList.add('prompt-big');
+      promptEl.textContent = q.prompt.items[0];
+    } else if (q.prompt.kind === 'row') {
+      promptEl.classList.add('prompt-row');
+      q.prompt.items.forEach((it) => {
+        const s = document.createElement('span');
+        s.className = 'pf' + (q.prompt.big ? ' big' : '');
+        s.textContent = it;
+        promptEl.appendChild(s);
+      });
+    }
+  }
+
+  // Перемешиваем позиции вариантов в сетке, чтобы правильный был в случайном месте.
   const idx = shuffle(q.items.map((_, i) => i));
   gridEl.innerHTML = '';
   idx.forEach((origIndex) => {
@@ -343,7 +532,7 @@ function onPick(cell, isCorrect, q) {
 
     const nextBtn = document.createElement('button');
     nextBtn.className = 'btn';
-    nextBtn.textContent = (pos + 1 < QUESTIONS.length) ? 'Дальше ▶' : 'Закончить ✓';
+    nextBtn.textContent = (pos + 1 < order.length) ? 'Дальше ▶' : 'Закончить ✓';
     nextBtn.addEventListener('click', goNext);
     nextWrapEl.innerHTML = '';
     nextWrapEl.appendChild(nextBtn);
@@ -360,7 +549,7 @@ function onPick(cell, isCorrect, q) {
 
 function goNext() {
   pos++;
-  if (pos < QUESTIONS.length) {
+  if (pos < order.length) {
     renderQuestion();
   } else {
     showEnd();
@@ -371,13 +560,13 @@ function showEnd() {
   gameScreen.classList.add('hidden');
   endScreen.classList.remove('hidden');
 
-  const total = QUESTIONS.length;
+  const total = order.length;
   // звёзды по числу заданий, решённых с первой попытки (мягко, без «проигрыша»)
   let stars, title, summary;
-  if (firstTryCount >= 13) {
+  if (firstTryCount >= total - 2) {
     stars = '⭐⭐⭐'; title = 'Превосходно!';
     summary = 'Почти всё с первой попытки — ты настоящий знаток!';
-  } else if (firstTryCount >= 9) {
+  } else if (firstTryCount >= Math.ceil(total * 0.6)) {
     stars = '⭐⭐'; title = 'Здорово!';
     summary = 'Очень хороший результат. Ещё разок — и будет три звёздочки!';
   } else {
@@ -387,12 +576,17 @@ function showEnd() {
   endTitleEl.textContent = title;
   starsEl.textContent = stars;
   endSummaryEl.textContent = summary;
-  scoreLineEl.textContent = 'С первой попытки: ' + firstTryCount + ' из ' + total;
+  scoreLineEl.textContent = 'Уровень «' + LEVEL_NAMES[currentLevel] + '». С первой попытки: ' + firstTryCount + ' из ' + total;
   playGood();
 }
 
-document.getElementById('startBtn').addEventListener('click', startGame);
-document.getElementById('againBtn').addEventListener('click', startGame);
+// Кнопки выбора уровня на стартовом экране.
+document.querySelectorAll('.level-btn').forEach((b) => {
+  b.addEventListener('click', () => startGame(parseInt(b.getAttribute('data-level'), 10)));
+});
+// Финальный экран: переиграть тот же уровень или вернуться к выбору.
+document.getElementById('againBtn').addEventListener('click', () => startGame(currentLevel));
+document.getElementById('changeLevelBtn').addEventListener('click', showStart);
 </script>
 </body>
 </html>
