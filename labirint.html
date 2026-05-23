@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<!--
+  Игра «Лабиринт» — развивающая цель: ПРОСТРАНСТВЕННОЕ МЫШЛЕНИЕ, планирование пути.
+  Лабиринт генерируется на Canvas (алгоритм «поиск в глубину с возвратом»).
+  Мышка 🐭 идёт к сыру 🧀. Управление: стрелки/WASD, свайпы по полю и
+  экранный крестик (для телефона). За игру — 5 лабиринтов; звёзды зависят от
+  того, насколько близко к кратчайшему пути (считается через поиск в ширину).
+  Три уровня — размер лабиринта (7×7, 10×10, 14×14).
+  Навигация как в других играх: верхний бар, выбор уровня, подтверждение
+  выхода, переключатель игр.
+  Чистый HTML/CSS/JS, один файл, офлайн, работает по file:// и на iOS.
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Лабиринт">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Лабиринт</title>
+<style>
+  :root {
+    --bg1: #e0e7ff;
+    --bg2: #fae8ff;
+    --card: #ffffff;
+    --text: #1f2937;
+    --accent: #4f46e5;
+    --good: #22c55e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(10px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  .screen { width: 100%; max-width: 520px; text-align: center; }
+  .hidden { display: none; }
+
+  h1 { font-size: clamp(28px, 6.5vw, 44px); margin: 0 0 10px; }
+  .lead { color: #4b5563; font-size: clamp(16px, 3.6vw, 21px); margin: 0 0 28px; }
+
+  .btn {
+    display: inline-block; border: none; border-radius: 18px;
+    padding: 16px 34px; font-size: clamp(18px, 4vw, 24px);
+    font-weight: 700; font-family: inherit; color: #fff; background: var(--accent);
+    cursor: pointer; box-shadow: 0 8px 20px rgba(79,70,229,0.30);
+    touch-action: manipulation; text-decoration: none;
+  }
+  .btn.secondary { background: #fff; color: var(--accent); box-shadow: 0 6px 16px rgba(79,70,229,0.16); }
+  @media (hover: hover) { .btn:hover { filter: brightness(1.05); } }
+  .btn:active { transform: scale(0.97); }
+
+  .topbar { width: 100%; max-width: 520px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .navbtn { font-family: inherit; font-weight: 700; font-size: clamp(14px, 3.4vw, 17px); border: none; background: #fff; color: var(--accent); border-radius: 999px; padding: 9px 16px; cursor: pointer; text-decoration: none; box-shadow: 0 4px 12px rgba(79,70,229,0.14); touch-action: manipulation; white-space: nowrap; }
+  .navbtn:active { transform: scale(0.96); }
+  .navright { display: flex; gap: 8px; }
+  .navright.hidden { display: none; }
+
+  .levels { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  .level-btn { width: 280px; max-width: 100%; }
+
+  .progress { font-size: clamp(15px, 3.4vw, 19px); color: #6b7280; font-weight: 700; margin-bottom: 8px; }
+  .hint { font-size: clamp(14px, 3.2vw, 17px); color: #6b7280; margin-bottom: 12px; }
+  .maze-wrap { background: var(--card); border-radius: 24px; padding: 14px; display: inline-block; box-shadow: 0 12px 30px rgba(79,70,229,0.15); }
+  canvas#maze { width: min(320px, 82vw); height: auto; display: block; touch-action: none; }
+
+  /* экранный крестик управления */
+  .dpad { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; width: min(230px, 70vw); margin: 18px auto 0; }
+  .dbtn {
+    font-family: inherit; font-weight: 800; font-size: 28px;
+    border: none; border-radius: 18px; background: #fff; color: var(--accent);
+    box-shadow: 0 6px 16px rgba(79,70,229,0.16); cursor: pointer;
+    aspect-ratio: 1 / 1; touch-action: manipulation;
+  }
+  .dbtn:active { transform: scale(0.94); background: #eef2ff; }
+  .up    { grid-column: 2; grid-row: 1; }
+  .left  { grid-column: 1; grid-row: 2; }
+  .down  { grid-column: 2; grid-row: 2; }
+  .right { grid-column: 3; grid-row: 2; }
+
+  .feedback { min-height: 34px; margin-top: 14px; font-size: clamp(19px, 4.2vw, 25px); font-weight: 700; }
+  .feedback.good { color: var(--good); }
+
+  .final-emoji { font-size: 72px; margin-bottom: 6px; }
+  .stars { font-size: clamp(40px, 11vw, 64px); letter-spacing: 6px; margin: 8px 0 4px; animation: pop 0.5s ease; }
+  @keyframes pop { 0%{transform:scale(1);} 45%{transform:scale(1.10);} 100%{transform:scale(1);} }
+  .score-line { font-size: clamp(17px, 3.8vw, 22px); color: #4b5563; font-weight: 700; margin: 8px 0 26px; }
+  .final-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  .switcher { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+  .switcher-label { font-size: clamp(15px,3.4vw,18px); font-weight: 700; color: #6b7280; }
+  .game-pill { font-size: 30px; text-decoration: none; line-height: 1; background: #fff; border-radius: 16px; padding: 8px 12px; box-shadow: 0 6px 16px rgba(79,70,229,0.14); touch-action: manipulation; }
+  .game-pill:active { transform: scale(0.94); }
+
+  .overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .overlay.hidden { display: none; }
+  .confirm-box { background: #fff; border-radius: 24px; padding: 26px 24px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .confirm-box p { font-size: clamp(18px,4.4vw,22px); font-weight: 700; margin: 0 0 20px; }
+  .confirm-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .cbtn { font-family: inherit; font-weight: 700; font-size: clamp(16px,4vw,20px); border: none; border-radius: 14px; padding: 14px 26px; cursor: pointer; touch-action: manipulation; }
+  .cbtn-yes { background: var(--accent); color: #fff; }
+  .cbtn-no  { background: #eee; color: #1f2937; }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <a class="navbtn" id="homeBtn" href="index.html">🏠 К играм</a>
+    <div class="navright hidden" id="navRight">
+      <button class="navbtn" id="levelBtn">🎚️ Уровень</button>
+      <button class="navbtn" id="restartBtn">🔄 Заново</button>
+    </div>
+  </header>
+
+  <!-- Экран старта: выбор уровня -->
+  <div id="startScreen" class="screen">
+    <div class="final-emoji">🌀</div>
+    <h1>Лабиринт</h1>
+    <p class="lead">Помоги мышке 🐭 добраться до сыра 🧀!</p>
+    <div class="levels">
+      <button class="btn level-btn" data-level="1">🙂 Маленький</button>
+      <button class="btn level-btn" data-level="2">😎 Средний</button>
+      <button class="btn level-btn" data-level="3">🤓 Большой</button>
+    </div>
+  </div>
+
+  <!-- Игровой экран -->
+  <div id="gameScreen" class="screen hidden">
+    <div class="progress" id="progress">Лабиринт 1 из 5</div>
+    <div class="hint">Веди мышку 🐭 к сыру 🧀 — стрелками, свайпом или кнопками внизу</div>
+    <div class="maze-wrap"><canvas id="maze" width="330" height="330"></canvas></div>
+    <div class="dpad">
+      <button class="dbtn up"    data-dir="1" aria-label="Вверх">▲</button>
+      <button class="dbtn left"  data-dir="8" aria-label="Влево">◀</button>
+      <button class="dbtn down"  data-dir="4" aria-label="Вниз">▼</button>
+      <button class="dbtn right" data-dir="2" aria-label="Вправо">▶</button>
+    </div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <!-- Финальный экран -->
+  <div id="endScreen" class="screen hidden">
+    <div class="final-emoji">🌟</div>
+    <h1 id="endTitle">Молодец!</h1>
+    <div class="stars" id="stars"></div>
+    <p class="lead" id="endSummary">Все лабиринты пройдены!</p>
+    <p class="score-line" id="scoreLine"></p>
+    <div class="final-buttons">
+      <button class="btn" id="againBtn">Играть ещё раз 🔁</button>
+      <button class="btn secondary" id="changeLevelBtn">Сменить уровень 🎚️</button>
+    </div>
+    <div class="switcher">
+      <span class="switcher-label">Другая игра:</span>
+      <a class="game-pill" href="matematika.html" title="Математика">🧮</a>
+      <a class="game-pill" href="pamyat.html" title="Память">🧠</a>
+      <a class="game-pill" href="naydi-lishnee.html" title="Найди лишнее">🔍</a>
+      <a class="game-pill" href="zagadki.html" title="Загадки">🤔</a>
+      <a class="game-pill" href="chasy.html" title="Который час?">🕐</a>
+      <a class="game-pill" href="magazin.html" title="Магазин и сдача">🛒</a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="confirmOverlay">
+    <div class="confirm-box">
+      <p id="confirmText">Выйти? Прогресс не сохранится.</p>
+      <div class="confirm-actions">
+        <button class="cbtn cbtn-yes" id="cfYes">Да</button>
+        <button class="cbtn cbtn-no" id="cfNo">Остаться</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+const SIZES = { 1: 7, 2: 10, 3: 14 };
+const LEVEL_NAMES = { 1: 'Маленький', 2: 'Средний', 3: 'Большой' };
+const MAZES_PER_GAME = 5;
+
+// Направления (битовая маска открытых сторон клетки).
+const N = 1, E = 2, S = 4, W = 8;
+const DR = { 1:-1, 2:0, 4:1, 8:0 };
+const DC = { 1:0, 2:1, 4:0, 8:-1 };
+const OPP = { 1:4, 2:8, 4:1, 8:2 };
+
+const startScreen = document.getElementById('startScreen');
+const gameScreen  = document.getElementById('gameScreen');
+const endScreen   = document.getElementById('endScreen');
+const progressEl  = document.getElementById('progress');
+const feedbackEl  = document.getElementById('feedback');
+const scoreLineEl = document.getElementById('scoreLine');
+const starsEl     = document.getElementById('stars');
+const endTitleEl  = document.getElementById('endTitle');
+const endSummaryEl= document.getElementById('endSummary');
+const navRight    = document.getElementById('navRight');
+const canvas      = document.getElementById('maze');
+
+let currentLevel = 1;
+let cols = 7, rows = 7;
+let grid = [];          // open-маска по клеткам
+let pr = 0, pc = 0;     // позиция мышки (row, col)
+let moves = 0;
+let optimal = 0;
+let mazeIndex = 0;      // какой лабиринт по счёту (0-based)
+let totalMoves = 0;
+let totalOptimal = 0;
+let solvedLock = false; // пауза между лабиринтами
+
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function idx(r, c) { return r * cols + c; }
+
+/* ---------- Генерация лабиринта (DFS с возвратом) ---------- */
+function genMaze() {
+  grid = new Array(cols * rows).fill(0);
+  const visited = new Array(cols * rows).fill(false);
+  const stack = [[0, 0]];
+  visited[idx(0, 0)] = true;
+  while (stack.length) {
+    const [cr, cc] = stack[stack.length - 1];
+    const dirs = [N, E, S, W].filter((d) => {
+      const nr = cr + DR[d], nc = cc + DC[d];
+      return nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited[idx(nr, nc)];
+    });
+    if (!dirs.length) { stack.pop(); continue; }
+    const d = dirs[randInt(0, dirs.length - 1)];
+    const nr = cr + DR[d], nc = cc + DC[d];
+    grid[idx(cr, cc)] |= d;
+    grid[idx(nr, nc)] |= OPP[d];
+    visited[idx(nr, nc)] = true;
+    stack.push([nr, nc]);
+  }
+}
+
+// Кратчайший путь от старта (0,0) до сыра (rows-1,cols-1) — поиск в ширину.
+function shortestPath() {
+  const dist = new Array(cols * rows).fill(-1);
+  dist[0] = 0;
+  const queue = [[0, 0]];
+  let head = 0;
+  while (head < queue.length) {
+    const [r, c] = queue[head++];
+    const open = grid[idx(r, c)];
+    [N, E, S, W].forEach((d) => {
+      if (open & d) {
+        const nr = r + DR[d], nc = c + DC[d];
+        if (dist[idx(nr, nc)] === -1) {
+          dist[idx(nr, nc)] = dist[idx(r, c)] + 1;
+          queue.push([nr, nc]);
+        }
+      }
+    });
+  }
+  return dist[idx(rows - 1, cols - 1)];
+}
+
+/* ---------- Рисование ---------- */
+const ctx = canvas.getContext('2d');
+const SIZE = 330;
+(function setupCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = SIZE * dpr;
+  canvas.height = SIZE * dpr;
+  ctx.scale(dpr, dpr);
+})();
+
+function drawMaze() {
+  const s = SIZE / cols;
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  ctx.strokeStyle = '#4338ca';
+  ctx.lineWidth = Math.max(2, s * 0.12);
+  ctx.lineCap = 'round';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const open = grid[idx(r, c)];
+      const x = c * s, y = r * s;
+      ctx.beginPath();
+      if (!(open & N)) { ctx.moveTo(x, y);       ctx.lineTo(x + s, y); }
+      if (!(open & S)) { ctx.moveTo(x, y + s);   ctx.lineTo(x + s, y + s); }
+      if (!(open & W)) { ctx.moveTo(x, y);       ctx.lineTo(x, y + s); }
+      if (!(open & E)) { ctx.moveTo(x + s, y);   ctx.lineTo(x + s, y + s); }
+      ctx.stroke();
+    }
+  }
+
+  ctx.font = (s * 0.7) + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🧀', (cols - 0.5) * s, (rows - 0.5) * s);   // сыр в дальнем углу
+  ctx.fillText('🐭', (pc + 0.5) * s, (pr + 0.5) * s);       // мышка
+}
+
+/* ---------- Логика ---------- */
+function newMaze() {
+  genMaze();
+  pr = 0; pc = 0;
+  moves = 0;
+  optimal = shortestPath();
+  solvedLock = false;
+  progressEl.textContent = LEVEL_NAMES[currentLevel] + ' · Лабиринт ' + (mazeIndex + 1) + ' из ' + MAZES_PER_GAME;
+  feedbackEl.textContent = '';
+  feedbackEl.className = 'feedback';
+  drawMaze();
+}
+
+function tryMove(d) {
+  if (solvedLock) return;
+  ensureAudio();
+  const open = grid[idx(pr, pc)];
+  if (open & d) {
+    pr += DR[d]; pc += DC[d];
+    moves++;
+    drawMaze();
+    if (pr === rows - 1 && pc === cols - 1) onSolve();
+  }
+}
+
+function onSolve() {
+  solvedLock = true;
+  totalMoves += moves;
+  totalOptimal += optimal;
+  playGood();
+  feedbackEl.textContent = 'Сыр найден! 🎉';
+  feedbackEl.className = 'feedback good';
+  setTimeout(() => {
+    mazeIndex++;
+    if (mazeIndex < MAZES_PER_GAME) newMaze();
+    else showEnd();
+  }, 900);
+}
+
+function startGame(level) {
+  currentLevel = level;
+  cols = rows = SIZES[level];
+  mazeIndex = 0;
+  totalMoves = 0;
+  totalOptimal = 0;
+  startScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  gameScreen.classList.remove('hidden');
+  navRight.classList.remove('hidden');
+  newMaze();
+}
+
+function showStart() {
+  gameScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');
+}
+
+function showEnd() {
+  gameScreen.classList.add('hidden');
+  endScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');
+
+  // звёзды — за то, насколько близко к кратчайшему пути (без «проигрыша»)
+  const ratio = totalOptimal > 0 ? totalMoves / totalOptimal : 1;
+  let stars, title, summary;
+  if (ratio <= 1.3) {
+    stars = '⭐⭐⭐'; title = 'Превосходно!';
+    summary = 'Ты шёл почти кратчайшим путём — отличное чутьё!';
+  } else if (ratio <= 1.9) {
+    stars = '⭐⭐'; title = 'Здорово!';
+    summary = 'Хорошо прошёл! В следующий раз попробуй найти путь покороче.';
+  } else {
+    stars = '⭐'; title = 'Молодец!';
+    summary = 'Все лабиринты пройдены. Чем больше играешь — тем быстрее находишь путь!';
+  }
+  endTitleEl.textContent = title;
+  starsEl.textContent = stars;
+  endSummaryEl.textContent = summary;
+  scoreLineEl.textContent = 'Уровень «' + LEVEL_NAMES[currentLevel] + '». Шагов: ' + totalMoves + ' (кратчайший путь: ' + totalOptimal + ')';
+  playGood();
+}
+
+/* ---------- Управление ---------- */
+// Экранный крестик.
+document.querySelector('.dpad').addEventListener('click', (e) => {
+  const b = e.target.closest('.dbtn');
+  if (b) tryMove(parseInt(b.getAttribute('data-dir'), 10));
+});
+
+// Клавиатура: стрелки и WASD.
+document.addEventListener('keydown', (e) => {
+  if (gameScreen.classList.contains('hidden')) return;
+  let d = 0;
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'ц' || e.key === 'W') d = N;
+  else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'ы' || e.key === 'S') d = S;
+  else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ф' || e.key === 'A') d = W;
+  else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'в' || e.key === 'D') d = E;
+  if (d) { e.preventDefault(); tryMove(d); }
+});
+
+// Свайпы по полю.
+let sx = 0, sy = 0, swiping = false;
+canvas.addEventListener('touchstart', (e) => {
+  const t = e.changedTouches[0];
+  sx = t.clientX; sy = t.clientY; swiping = true;
+}, { passive: true });
+canvas.addEventListener('touchmove', (e) => { if (swiping) e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  if (!swiping) return;
+  swiping = false;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - sx, dy = t.clientY - sy;
+  if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;     // слишком короткий жест
+  if (Math.abs(dx) > Math.abs(dy)) tryMove(dx > 0 ? E : W);
+  else tryMove(dy > 0 ? S : N);
+}, { passive: true });
+
+/* ---------- Звук ---------- */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freqs, dur, type) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  freqs.forEach((f, i) => {
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = type || 'sine'; o.frequency.value = f;
+    const t0 = now + i * 0.12;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  });
+}
+const playGood = () => tone([523.25, 659.25, 783.99], 0.22);
+
+/* ---------- Навигация и подтверждение выхода ---------- */
+const confirmOverlay = document.getElementById('confirmOverlay');
+const confirmTextEl  = document.getElementById('confirmText');
+let pendingYes = null;
+function askConfirm(msg, onYes) { confirmTextEl.textContent = msg; pendingYes = onYes; confirmOverlay.classList.remove('hidden'); }
+document.getElementById('cfYes').addEventListener('click', () => { confirmOverlay.classList.add('hidden'); const fn = pendingYes; pendingYes = null; if (fn) fn(); });
+document.getElementById('cfNo').addEventListener('click', () => { confirmOverlay.classList.add('hidden'); pendingYes = null; });
+
+function midGame() { return !gameScreen.classList.contains('hidden') && (mazeIndex > 0 || moves > 0); }
+
+document.querySelectorAll('.level-btn').forEach((b) => {
+  b.addEventListener('click', () => { ensureAudio(); startGame(parseInt(b.getAttribute('data-level'), 10)); });
+});
+document.getElementById('homeBtn').addEventListener('click', (e) => {
+  if (midGame()) { e.preventDefault(); askConfirm('Выйти в меню? Эта игра не сохранится.', () => { window.location.href = 'index.html'; }); }
+});
+document.getElementById('levelBtn').addEventListener('click', () => {
+  if (midGame()) askConfirm('Сменить уровень? Эта игра не сохранится.', showStart); else showStart();
+});
+document.getElementById('restartBtn').addEventListener('click', () => {
+  if (midGame()) askConfirm('Начать заново? Эта игра не сохранится.', () => startGame(currentLevel)); else startGame(currentLevel);
+});
+document.getElementById('againBtn').addEventListener('click', () => startGame(currentLevel));
+document.getElementById('changeLevelBtn').addEventListener('click', showStart);
+</script>
+</body>
+</html>
