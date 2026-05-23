@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <!--
-  Игра «Который час?» — развивающая цель: ОПРЕДЕЛЕНИЕ ВРЕМЕНИ ПО ЧАСАМ.
-  Программа 2 класса. На Canvas рисуется циферблат со стрелками (часовая
-  и минутная), ребёнок выбирает правильное время из вариантов.
-  Три уровня: 1) целые часы; 2) полчаса и четверти; 3) любые 5 минут.
+  Игра «Магазин и сдача» — развивающая цель: ДЕНЬГИ и ВЫЧИТАНИЕ, финграмотность.
+  Программа 2–3 класса. Показан товар с ценой и сколько денег дали в кассу;
+  ребёнок считает сдачу (заплачено − цена) и выбирает ответ из вариантов.
+  Три уровня: 1) платим 10 ₽; 2) платим 50 ₽; 3) платим 100 ₽.
+  Обманки специально каверзные (цена, вся купюра, соседние числа), чтобы
+  ребёнок действительно считал, а не угадывал.
   Навигация как в других играх: верхний бар (🏠 К играм, 🔄 Заново,
-  🎚 Уровень), выбор уровня на старте, подтверждение выхода, переключатель
-  игр и звёздочки в конце.
+  🎚 Уровень), выбор уровня, подтверждение выхода, переключатель игр, звёзды.
   Чистый HTML/CSS/JS, один файл, офлайн, работает по file:// и на iOS.
 -->
 <html lang="ru">
@@ -15,37 +16,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Который час?">
+<meta name="apple-mobile-web-app-title" content="Магазин">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Который час?</title>
+<title>Магазин и сдача</title>
 <style>
   :root {
-    --bg1: #dbeafe;
-    --bg2: #ede9fe;
+    --bg1: #d1fae5;
+    --bg2: #fef3c7;
     --card: #ffffff;
     --text: #1f2937;
-    --accent: #2563eb;
+    --accent: #0d9488;
     --good: #22c55e;
     --good-bg: #dcfce7;
   }
-  * {
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
-  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    margin: 0;
-    min-height: 100vh;
+    margin: 0; min-height: 100vh;
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
     color: var(--text);
     background: linear-gradient(135deg, var(--bg1), var(--bg2));
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display: flex; flex-direction: column; align-items: center;
     padding: calc(10px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   .screen { width: 100%; max-width: 560px; text-align: center; }
   .hidden { display: none; }
@@ -54,32 +47,18 @@
   .lead { color: #4b5563; font-size: clamp(16px, 3.6vw, 21px); margin: 0 0 28px; }
 
   .btn {
-    display: inline-block;
-    border: none; border-radius: 18px;
-    padding: 16px 34px;
-    font-size: clamp(18px, 4vw, 24px);
-    font-weight: 700; font-family: inherit;
-    color: #fff; background: var(--accent);
-    cursor: pointer; box-shadow: 0 8px 20px rgba(37,99,235,0.30);
+    display: inline-block; border: none; border-radius: 18px;
+    padding: 16px 34px; font-size: clamp(18px, 4vw, 24px);
+    font-weight: 700; font-family: inherit; color: #fff; background: var(--accent);
+    cursor: pointer; box-shadow: 0 8px 20px rgba(13,148,136,0.30);
     touch-action: manipulation; text-decoration: none;
   }
-  .btn.secondary { background: #fff; color: var(--accent); box-shadow: 0 6px 16px rgba(37,99,235,0.16); }
+  .btn.secondary { background: #fff; color: var(--accent); box-shadow: 0 6px 16px rgba(13,148,136,0.16); }
   @media (hover: hover) { .btn:hover { filter: brightness(1.05); } }
   .btn:active { transform: scale(0.97); }
 
-  /* верхний бар навигации */
-  .topbar {
-    width: 100%; max-width: 560px;
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 10px; margin-bottom: 14px;
-  }
-  .navbtn {
-    font-family: inherit; font-weight: 700; font-size: clamp(14px, 3.4vw, 17px);
-    border: none; background: #fff; color: var(--accent);
-    border-radius: 999px; padding: 9px 16px; cursor: pointer;
-    text-decoration: none; box-shadow: 0 4px 12px rgba(37,99,235,0.14);
-    touch-action: manipulation; white-space: nowrap;
-  }
+  .topbar { width: 100%; max-width: 560px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .navbtn { font-family: inherit; font-weight: 700; font-size: clamp(14px, 3.4vw, 17px); border: none; background: #fff; color: var(--accent); border-radius: 999px; padding: 9px 16px; cursor: pointer; text-decoration: none; box-shadow: 0 4px 12px rgba(13,148,136,0.14); touch-action: manipulation; white-space: nowrap; }
   .navbtn:active { transform: scale(0.96); }
   .navright { display: flex; gap: 8px; }
   .navright.hidden { display: none; }
@@ -87,24 +66,24 @@
   .levels { display: flex; flex-direction: column; gap: 14px; align-items: center; }
   .level-btn { width: 280px; max-width: 100%; }
 
-  /* игровой экран */
-  .progress { font-size: clamp(15px, 3.4vw, 19px); color: #6b7280; font-weight: 700; margin-bottom: 8px; }
-  .question { font-size: clamp(19px, 4.4vw, 26px); font-weight: 700; margin-bottom: 14px; }
-  .clock-wrap {
-    background: var(--card); border-radius: 28px; padding: 16px;
-    display: inline-block; box-shadow: 0 12px 30px rgba(37,99,235,0.15);
-    margin-bottom: 20px;
+  .progress { font-size: clamp(15px, 3.4vw, 19px); color: #6b7280; font-weight: 700; margin-bottom: 10px; }
+
+  /* витрина-чек */
+  .receipt {
+    background: var(--card); border-radius: 24px; padding: 22px 18px;
+    box-shadow: 0 12px 30px rgba(13,148,136,0.15); margin-bottom: 18px;
   }
-  canvas#clock { width: min(280px, 70vw); height: auto; display: block; }
+  .product { font-size: clamp(60px, 16vw, 92px); line-height: 1; }
+  .price-line { font-size: clamp(20px, 4.6vw, 26px); font-weight: 800; margin-top: 6px; }
+  .paid-line { font-size: clamp(18px, 4.2vw, 23px); font-weight: 700; color: #4b5563; margin-top: 6px; }
+  .question { font-size: clamp(20px, 4.8vw, 28px); font-weight: 800; color: var(--accent); margin-bottom: 16px; }
 
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .opt {
     background: var(--card); border: 4px solid transparent; border-radius: 20px;
-    padding: 20px 12px; min-height: 76px;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: clamp(28px, 7vw, 40px);
-    color: var(--text); cursor: pointer;
-    box-shadow: 0 8px 20px rgba(37,99,235,0.12);
+    padding: 20px 12px; min-height: 76px; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: clamp(26px, 6.5vw, 38px); color: var(--text); cursor: pointer;
+    box-shadow: 0 8px 20px rgba(13,148,136,0.12);
     transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
     touch-action: manipulation; font-variant-numeric: tabular-nums;
   }
@@ -130,10 +109,9 @@
 
   .switcher { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
   .switcher-label { font-size: clamp(15px,3.4vw,18px); font-weight: 700; color: #6b7280; }
-  .game-pill { font-size: 30px; text-decoration: none; line-height: 1; background: #fff; border-radius: 16px; padding: 8px 12px; box-shadow: 0 6px 16px rgba(37,99,235,0.14); touch-action: manipulation; }
+  .game-pill { font-size: 30px; text-decoration: none; line-height: 1; background: #fff; border-radius: 16px; padding: 8px 12px; box-shadow: 0 6px 16px rgba(13,148,136,0.14); touch-action: manipulation; }
   .game-pill:active { transform: scale(0.94); }
 
-  /* подтверждение выхода */
   .overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 24px; }
   .overlay.hidden { display: none; }
   .confirm-box { background: #fff; border-radius: 24px; padding: 26px 24px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
@@ -156,21 +134,25 @@
 
   <!-- Экран старта: выбор уровня -->
   <div id="startScreen" class="screen">
-    <div class="final-emoji">🕐</div>
-    <h1>Который час?</h1>
-    <p class="lead">Посмотри на часы и выбери правильное время.</p>
+    <div class="final-emoji">🛒</div>
+    <h1>Магазин и сдача</h1>
+    <p class="lead">Посчитай, сколько сдачи получит покупатель.</p>
     <div class="levels">
-      <button class="btn level-btn" data-level="1">🙂 Целые часы</button>
-      <button class="btn level-btn" data-level="2">😎 Полчаса и четверти</button>
-      <button class="btn level-btn" data-level="3">🤓 Любые 5 минут</button>
+      <button class="btn level-btn" data-level="1">🙂 Платим 10 ₽</button>
+      <button class="btn level-btn" data-level="2">😎 Платим 50 ₽</button>
+      <button class="btn level-btn" data-level="3">🤓 Платим 100 ₽</button>
     </div>
   </div>
 
   <!-- Игровой экран -->
   <div id="gameScreen" class="screen hidden">
-    <div class="progress" id="progress">Вопрос 1 из 10</div>
-    <div class="question">Сколько времени на часах?</div>
-    <div class="clock-wrap"><canvas id="clock" width="300" height="300"></canvas></div>
+    <div class="progress" id="progress">Покупка 1 из 10</div>
+    <div class="receipt">
+      <div class="product" id="product">🍎</div>
+      <div class="price-line" id="price">Цена: 7 ₽</div>
+      <div class="paid-line" id="paid">Заплатили: 💵 10 ₽</div>
+    </div>
+    <div class="question">Сколько сдачи? 💰</div>
     <div class="grid" id="grid"></div>
     <div class="feedback" id="feedback"></div>
     <div class="next-wrap" id="nextWrap"></div>
@@ -181,7 +163,7 @@
     <div class="final-emoji">🌟</div>
     <h1 id="endTitle">Молодец!</h1>
     <div class="stars" id="stars"></div>
-    <p class="lead" id="endSummary">Ты определил всё время!</p>
+    <p class="lead" id="endSummary">Ты посчитал всю сдачу!</p>
     <p class="score-line" id="scoreLine"></p>
     <div class="final-buttons">
       <button class="btn" id="againBtn">Играть ещё раз 🔁</button>
@@ -193,7 +175,7 @@
       <a class="game-pill" href="pamyat.html" title="Память">🧠</a>
       <a class="game-pill" href="naydi-lishnee.html" title="Найди лишнее">🔍</a>
       <a class="game-pill" href="zagadki.html" title="Загадки">🤔</a>
-      <a class="game-pill" href="magazin.html" title="Магазин и сдача">🛒</a>
+      <a class="game-pill" href="chasy.html" title="Который час?">🕐</a>
     </div>
   </div>
 
@@ -210,20 +192,27 @@
 <script>
 "use strict";
 
-/* ---------- Параметры уровней ----------
-   level 1 — целые часы (минуты = 0);
-   level 2 — 0/15/30/45;
-   level 3 — любые 5 минут (0,5,…,55).
+/* ---------- Параметры ----------
+   На каждом уровне покупатель платит фиксированной купюрой,
+   а цена меньше неё, чтобы сдача была положительной.
 */
-const ALLOWED_MIN = { 1: [0], 2: [0, 15, 30, 45], 3: [0,5,10,15,20,25,30,35,40,45,50,55] };
-const LEVEL_NAMES = { 1: 'Целые часы', 2: 'Полчаса и четверти', 3: 'Любые 5 минут' };
+const PAY = { 1: 10, 2: 50, 3: 100 };
+const LEVEL_NAMES = { 1: 'Платим 10 ₽', 2: 'Платим 50 ₽', 3: 'Платим 100 ₽' };
 const GAME_SIZE = 10;
+
+// Товары — только «старые» эмодзи (есть в любом шрифте).
+const PRODUCTS = ['🍎','🍌','🍐','🍊','🍓','🍇','🍉','🍒','🍞','🥚','🧀','🍪','🍫',
+                  '🍬','🍭','🍩','🍦','🥤','⚽','🎨','✏️','📕','📒','🧸','🎈','🚗',
+                  '🎁','🍕','🥕','🌷'];
 
 const startScreen = document.getElementById('startScreen');
 const gameScreen  = document.getElementById('gameScreen');
 const endScreen   = document.getElementById('endScreen');
 const gridEl      = document.getElementById('grid');
 const progressEl  = document.getElementById('progress');
+const productEl   = document.getElementById('product');
+const priceEl     = document.getElementById('price');
+const paidEl      = document.getElementById('paid');
 const feedbackEl  = document.getElementById('feedback');
 const nextWrapEl  = document.getElementById('nextWrap');
 const scoreLineEl = document.getElementById('scoreLine');
@@ -231,13 +220,12 @@ const starsEl     = document.getElementById('stars');
 const endTitleEl  = document.getElementById('endTitle');
 const endSummaryEl= document.getElementById('endSummary');
 const navRight    = document.getElementById('navRight');
-const canvas      = document.getElementById('clock');
 
 let pos = 0;
 let firstTryCount = 0;
 let triedThis = false;
 let currentLevel = 1;
-let answer = null;     // { h, m } текущего вопроса
+let answerChange = 0;     // правильная сдача текущей покупки
 
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function shuffle(arr) {
@@ -245,107 +233,27 @@ function shuffle(arr) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
-function fmt(t) { return t.h + ':' + String(t.m).padStart(2, '0'); }
-function wrapHour(h) { return ((h - 1) % 12 + 12) % 12 + 1; }
 
-function genTime(level) {
-  const mins = ALLOWED_MIN[level];
-  return { h: randInt(1, 12), m: mins[randInt(0, mins.length - 1)] };
-}
-
-// Готовим вопрос: правильное время + 3 правдоподобные обманки.
 function makeQuestion(level) {
-  const ans = genTime(level);
-  const opts = [ans];
-  const seen = new Set([fmt(ans)]);
-  let guard = 0;
-  while (opts.length < 4 && guard++ < 100) {
-    let t;
-    const r = Math.random();
-    if (r < 0.45) {                                   // путаница в часе
-      t = { h: wrapHour(ans.h + (Math.random() < 0.5 ? 1 : -1)), m: ans.m };
-    } else if (r < 0.75 && ALLOWED_MIN[level].length > 1) { // путаница в минутах
-      t = { h: ans.h, m: ALLOWED_MIN[level][randInt(0, ALLOWED_MIN[level].length - 1)] };
-    } else {                                          // совсем другое время
-      t = genTime(level);
-    }
-    if (!seen.has(fmt(t))) { seen.add(fmt(t)); opts.push(t); }
-  }
-  return { ans, opts: shuffle(opts) };
-}
+  const pay = PAY[level];
+  const price = randInt(1, pay - 1);
+  const change = pay - price;
+  const emoji = PRODUCTS[randInt(0, PRODUCTS.length - 1)];
 
-/* ---------- Рисование циферблата на Canvas ---------- */
-const ctx = canvas.getContext('2d');
-const SIZE = 300;                                    // логический размер
-(function setupCanvas() {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = SIZE * dpr;
-  canvas.height = SIZE * dpr;
-  ctx.scale(dpr, dpr);
-})();
+  // Обманки: цена (частая ошибка), вся купюра, соседние и «на десяток» числа.
+  const seen = new Set([change]);
+  const pool = [];
+  const step = level >= 3 ? 10 : (level === 2 ? 5 : 1);
+  function add(v) { if (v >= 1 && v <= pay && !seen.has(v)) { seen.add(v); pool.push(v); } }
+  add(price);
+  add(change + 1); add(change - 1);
+  add(change + step); add(change - step);
+  add(pay);
+  let g = 0;
+  while (pool.length < 3 && g++ < 80) add(randInt(1, pay));
 
-function drawHand(angle, length, width, color) {
-  const cx = SIZE / 2, cy = SIZE / 2;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(angle);
-  ctx.lineCap = 'round';
-  ctx.lineWidth = width;
-  ctx.strokeStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(0, 10);
-  ctx.lineTo(0, -length);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawClock(h, m) {
-  const cx = SIZE / 2, cy = SIZE / 2, R = SIZE / 2 - 8;
-  ctx.clearRect(0, 0, SIZE, SIZE);
-
-  // циферблат
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, 2 * Math.PI);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.lineWidth = 7;
-  ctx.strokeStyle = '#2563eb';
-  ctx.stroke();
-
-  // минутные риски и цифры 1..12
-  for (let i = 0; i < 60; i++) {
-    const a = (i / 60) * 2 * Math.PI;
-    const outer = R - 6;
-    const inner = (i % 5 === 0) ? R - 18 : R - 12;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.sin(a) * outer, cy - Math.cos(a) * outer);
-    ctx.lineTo(cx + Math.sin(a) * inner, cy - Math.cos(a) * inner);
-    ctx.lineWidth = (i % 5 === 0) ? 3 : 1;
-    ctx.strokeStyle = '#94a3b8';
-    ctx.stroke();
-  }
-  ctx.fillStyle = '#1f2937';
-  ctx.font = 'bold 26px "Segoe UI", system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  for (let n = 1; n <= 12; n++) {
-    const a = (n / 12) * 2 * Math.PI;
-    const rx = cx + Math.sin(a) * (R - 38);
-    const ry = cy - Math.cos(a) * (R - 38);
-    ctx.fillText(String(n), rx, ry);
-  }
-
-  // стрелки: часовая (короткая, толстая) и минутная (длинная)
-  const hourAngle = ((h % 12) + m / 60) / 12 * 2 * Math.PI;
-  const minAngle  = (m / 60) * 2 * Math.PI;
-  drawHand(hourAngle, R * 0.50, 8, '#1f2937');
-  drawHand(minAngle,  R * 0.78, 5, '#2563eb');
-
-  // центр
-  ctx.beginPath();
-  ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
-  ctx.fillStyle = '#2563eb';
-  ctx.fill();
+  const opts = shuffle([change].concat(shuffle(pool).slice(0, 3)));
+  return { emoji, price, pay, change, opts };
 }
 
 /* ---------- Логика игры ---------- */
@@ -373,30 +281,33 @@ function renderQuestion() {
   feedbackEl.className = 'feedback';
   nextWrapEl.innerHTML = '';
 
-  progressEl.textContent = LEVEL_NAMES[currentLevel] + ' · Вопрос ' + (pos + 1) + ' из ' + GAME_SIZE;
+  progressEl.textContent = LEVEL_NAMES[currentLevel] + ' · Покупка ' + (pos + 1) + ' из ' + GAME_SIZE;
 
   const q = makeQuestion(currentLevel);
-  answer = q.ans;
-  drawClock(answer.h, answer.m);
+  answerChange = q.change;
+  productEl.textContent = q.emoji;
+  priceEl.textContent = 'Цена: ' + q.price + ' ₽';
+  paidEl.textContent = 'Заплатили: 💵 ' + q.pay + ' ₽';
 
   gridEl.innerHTML = '';
-  q.opts.forEach((t) => {
+  q.opts.forEach((v) => {
     const cell = document.createElement('button');
     cell.type = 'button';
     cell.className = 'opt';
-    cell.textContent = fmt(t);
-    cell.addEventListener('click', () => onPick(cell, fmt(t) === fmt(answer)));
+    cell.textContent = v + ' ₽';
+    cell.addEventListener('click', () => onPick(cell, v === answerChange));
     gridEl.appendChild(cell);
   });
 }
 
 function onPick(cell, isCorrect) {
+  ensureAudio();
   if (isCorrect) {
     cell.classList.add('correct', 'locked');
     [...gridEl.children].forEach((c) => { c.classList.add('locked'); if (c !== cell) c.classList.add('dim'); });
     if (!triedThis) firstTryCount++;
     playGood();
-    feedbackEl.textContent = 'Верно! ' + fmt(answer) + ' 🎉';
+    feedbackEl.textContent = 'Верно! Сдача ' + answerChange + ' ₽ 🎉';
     feedbackEl.className = 'feedback good';
 
     const nextBtn = document.createElement('button');
@@ -411,7 +322,7 @@ function onPick(cell, isCorrect) {
     cell.classList.remove('wrong');
     void cell.offsetWidth;
     cell.classList.add('wrong');
-    feedbackEl.textContent = 'Посмотри ещё раз 🙂';
+    feedbackEl.textContent = 'Посчитай ещё раз 🙂';
     feedbackEl.className = 'feedback retry';
   }
 }
@@ -431,13 +342,13 @@ function showEnd() {
   let stars, title, summary;
   if (firstTryCount >= total - 1) {
     stars = '⭐⭐⭐'; title = 'Превосходно!';
-    summary = 'Почти всё с первой попытки — ты отлично читаешь часы!';
+    summary = 'Почти всё с первой попытки — настоящий кассир!';
   } else if (firstTryCount >= Math.ceil(total * 0.6)) {
     stars = '⭐⭐'; title = 'Здорово!';
     summary = 'Очень хороший результат. Ещё разок — и будет три звёздочки!';
   } else {
     stars = '⭐'; title = 'Молодец!';
-    summary = 'Ты прошёл все вопросы. Чем больше тренируешься — тем легче!';
+    summary = 'Ты посчитал всю сдачу. Чем больше тренируешься — тем легче!';
   }
   endTitleEl.textContent = title;
   starsEl.textContent = stars;
