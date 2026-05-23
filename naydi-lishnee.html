@@ -46,8 +46,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    padding: calc(10px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
     /* без выделения текста и меню при удержании пальца */
     -webkit-user-select: none;
     user-select: none;
@@ -206,9 +205,64 @@
     margin: 8px 0 26px;
   }
   .final-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  /* верхний бар навигации */
+  .topbar {
+    width: 100%; max-width: 640px;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; margin-bottom: 16px;
+  }
+  .navbtn {
+    font-family: inherit; font-weight: 700; font-size: clamp(14px, 3.4vw, 17px);
+    border: none; background: #fff; color: var(--accent);
+    border-radius: 999px; padding: 9px 16px; cursor: pointer;
+    text-decoration: none; box-shadow: 0 4px 12px rgba(124,58,237,0.14);
+    touch-action: manipulation; white-space: nowrap;
+  }
+  .navbtn:active { transform: scale(0.96); }
+  .navright { display: flex; gap: 8px; }
+  .navright.hidden { display: none; }   /* перебиваем общий .hidden по специфичности */
+  /* переключатель игр на финальном экране */
+  .switcher {
+    margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px;
+    align-items: center; justify-content: center;
+  }
+  .switcher-label { font-size: clamp(15px,3.4vw,18px); font-weight: 700; color: #6b7280; }
+  .game-pill {
+    font-size: 30px; text-decoration: none; line-height: 1;
+    background: #fff; border-radius: 16px; padding: 8px 12px;
+    box-shadow: 0 6px 16px rgba(124,58,237,0.14); touch-action: manipulation;
+  }
+  .game-pill:active { transform: scale(0.94); }
+  /* подтверждение выхода */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .overlay.hidden { display: none; }
+  .confirm-box {
+    background: #fff; border-radius: 24px; padding: 26px 24px;
+    max-width: 360px; width: 100%; text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+  }
+  .confirm-box p { font-size: clamp(18px,4.4vw,22px); font-weight: 700; margin: 0 0 20px; }
+  .confirm-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .cbtn {
+    font-family: inherit; font-weight: 700; font-size: clamp(16px,4vw,20px);
+    border: none; border-radius: 14px; padding: 14px 26px; cursor: pointer; touch-action: manipulation;
+  }
+  .cbtn-yes { background: var(--accent); color: #fff; }
+  .cbtn-no  { background: #eee; color: #1f2937; }
 </style>
 </head>
 <body>
+
+  <header class="topbar">
+    <a class="navbtn" id="homeBtn" href="index.html">🏠 К играм</a>
+    <div class="navright hidden" id="navRight">
+      <button class="navbtn" id="levelBtn">🎚️ Уровень</button>
+      <button class="navbtn" id="restartBtn">🔄 Заново</button>
+    </div>
+  </header>
 
   <!-- Экран старта: выбор уровня -->
   <div id="startScreen" class="screen">
@@ -241,8 +295,23 @@
     <p class="score-line" id="scoreLine"></p>
     <div class="final-buttons">
       <button class="btn" id="againBtn">Играть ещё раз 🔁</button>
-      <button class="btn secondary" id="changeLevelBtn">Выбрать уровень 🎚️</button>
-      <a class="btn secondary" href="index.html">В меню</a>
+      <button class="btn secondary" id="changeLevelBtn">Сменить уровень 🎚️</button>
+    </div>
+    <div class="switcher">
+      <span class="switcher-label">Другая игра:</span>
+      <a class="game-pill" href="matematika.html" title="Математика">🧮</a>
+      <a class="game-pill" href="pamyat.html" title="Память">🧠</a>
+      <a class="game-pill" href="zagadki.html" title="Загадки">🤔</a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="confirmOverlay">
+    <div class="confirm-box">
+      <p id="confirmText">Выйти? Прогресс не сохранится.</p>
+      <div class="confirm-actions">
+        <button class="cbtn cbtn-yes" id="cfYes">Да</button>
+        <button class="cbtn cbtn-no" id="cfNo">Остаться</button>
+      </div>
     </div>
   </div>
 
@@ -298,7 +367,7 @@ const QUESTIONS = [
   // — Ответь на вопрос
   { level:1, type:'attribute', q:'Кто живёт в воде?', items:['🐶','🐱','🐟','🐰'], answer:2, big:true, why:'Рыбы живут в воде.' },
   { level:1, type:'attribute', q:'Что можно есть?', items:['🍎','🚗','🪑','☂️'], answer:0, big:true, why:'Яблоко — это еда.' },
-  { level:1, type:'attribute', q:'Чем рисуют?', items:['🖌️','🪥','🍴','⌚'], answer:0, big:true, why:'Кисточкой рисуют.' },
+  { level:1, type:'attribute', q:'Чем рисуют?', items:['🖌️','🔑','🍴','⌚'], answer:0, big:true, why:'Кисточкой рисуют.' },
   { level:1, type:'attribute', q:'Что бывает зимой?', items:['☀️','❄️','🌷','🌻'], answer:1, big:true, why:'Снежинка — зимой.' },
   { level:1, type:'attribute', q:'Кто умеет летать?', items:['🐦','🐟','🐘','🐢'], answer:0, big:true, why:'Птица умеет летать.' },
   { level:1, type:'attribute', q:'Что светит ночью?', items:['🌙','☀️','🌳','🏠'], answer:0, big:true, why:'Луна светит ночью.' },
@@ -318,7 +387,7 @@ const QUESTIONS = [
   { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🐝']}, items:['🐞','🐦','🌷','🐠'], answer:0, big:true, why:'Пчела и божья коровка — насекомые (птица тут лишняя).' },
   { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🐟']}, items:['🐠','🐦','🐱','🚗'], answer:0, big:true, why:'Это всё рыбы.' },
   { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['🍅']}, items:['🥕','🍎','🚗','🐶'], answer:0, big:true, why:'Помидор и морковь — овощи.' },
-  { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['📚']}, items:['📓','🪥','🍴','⌚'], answer:0, big:true, why:'Книга и тетрадь — для учёбы.' },
+  { level:2, type:'match', q:'Что подходит к этой картинке?', prompt:{kind:'big',items:['📚']}, items:['📓','🔑','🍴','⌚'], answer:0, big:true, why:'Книга и тетрадь — для учёбы.' },
   { level:2, type:'match', q:'К какому слову подходит?', prompt:{kind:'row',items:['Москва'],big:true}, items:['Париж','Россия','Волга','Школа'], answer:0, big:false, why:'Москва и Париж — города.' },
   { level:2, type:'match', q:'К какому слову подходит?', prompt:{kind:'row',items:['Корова'],big:true}, items:['Коза','Волк','Стол','Берёза'], answer:0, big:false, why:'Корова и коза — домашние животные.' },
   // — Что общего?
@@ -432,6 +501,7 @@ const scoreLineEl = document.getElementById('scoreLine');
 const starsEl     = document.getElementById('stars');
 const endTitleEl  = document.getElementById('endTitle');
 const endSummaryEl= document.getElementById('endSummary');
+const navRight    = document.getElementById('navRight');
 
 let order = [];          // индексы заданий текущей игры (перемешаны, обрезаны)
 let pos = 0;             // текущая позиция в order
@@ -452,6 +522,7 @@ function showStart() {
   gameScreen.classList.add('hidden');
   endScreen.classList.add('hidden');
   startScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');     // в баре остаётся только «🏠 К играм»
 }
 
 function startGame(level) {
@@ -465,6 +536,7 @@ function startGame(level) {
   startScreen.classList.add('hidden');
   endScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
+  navRight.classList.remove('hidden');  // показываем «Уровень» и «Заново»
   renderQuestion();
 }
 
@@ -559,6 +631,7 @@ function goNext() {
 function showEnd() {
   gameScreen.classList.add('hidden');
   endScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');     // на финале бар без «Уровень»/«Заново»
 
   const total = order.length;
   // звёзды по числу заданий, решённых с первой попытки (мягко, без «проигрыша»)
@@ -580,10 +653,47 @@ function showEnd() {
   playGood();
 }
 
+/* ---------- Навигация и подтверждение выхода ---------- */
+const confirmOverlay = document.getElementById('confirmOverlay');
+const confirmTextEl  = document.getElementById('confirmText');
+let pendingYes = null;
+function askConfirm(msg, onYes) {
+  confirmTextEl.textContent = msg;
+  pendingYes = onYes;
+  confirmOverlay.classList.remove('hidden');
+}
+document.getElementById('cfYes').addEventListener('click', () => {
+  confirmOverlay.classList.add('hidden');
+  const fn = pendingYes; pendingYes = null; if (fn) fn();
+});
+document.getElementById('cfNo').addEventListener('click', () => {
+  confirmOverlay.classList.add('hidden'); pendingYes = null;
+});
+
+// Игра «на середине»: открыт игровой экран и пройдено хотя бы одно задание.
+function midGame() { return !gameScreen.classList.contains('hidden') && pos > 0; }
+
 // Кнопки выбора уровня на стартовом экране.
 document.querySelectorAll('.level-btn').forEach((b) => {
   b.addEventListener('click', () => startGame(parseInt(b.getAttribute('data-level'), 10)));
 });
+
+// Верхний бар во время игры.
+document.getElementById('homeBtn').addEventListener('click', (e) => {
+  if (midGame()) {
+    e.preventDefault();
+    askConfirm('Выйти в меню? Эта игра не сохранится.', () => { window.location.href = 'index.html'; });
+  }
+});
+document.getElementById('levelBtn').addEventListener('click', () => {
+  if (midGame()) askConfirm('Сменить уровень? Эта игра не сохранится.', showStart);
+  else showStart();
+});
+document.getElementById('restartBtn').addEventListener('click', () => {
+  if (midGame()) askConfirm('Начать заново? Эта игра не сохранится.', () => startGame(currentLevel));
+  else startGame(currentLevel);
+});
+
 // Финальный экран: переиграть тот же уровень или вернуться к выбору.
 document.getElementById('againBtn').addEventListener('click', () => startGame(currentLevel));
 document.getElementById('changeLevelBtn').addEventListener('click', showStart);

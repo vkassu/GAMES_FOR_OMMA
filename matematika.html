@@ -34,7 +34,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 24px 16px 48px;
+    padding: calc(24px + env(safe-area-inset-top)) 16px calc(48px + env(safe-area-inset-bottom));
     /* без выделения текста и меню при удержании пальца */
     -webkit-user-select: none;
     user-select: none;
@@ -192,6 +192,28 @@
     100% { transform: scale(1); }
   }
   .pop { animation: pop 0.35s ease; }
+  /* Подтверждение выхода */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .overlay.hidden { display: none; }
+  .confirm-box {
+    background: #fff; border-radius: 24px; padding: 26px 24px;
+    max-width: 360px; width: 100%; text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+  }
+  .confirm-box p { font-size: clamp(18px,4.4vw,22px); font-weight: 700; margin: 0 0 20px; }
+  .confirm-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .cbtn {
+    font-family: inherit; font-weight: 700; font-size: clamp(16px,4vw,20px);
+    border: none; border-radius: 14px; padding: 14px 26px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .cbtn-yes { background: #7c3aed; color: #fff; }
+  .cbtn-no  { background: #eee; color: #1f2937; }
   @media (max-width: 680px) {
     .menu { flex-direction: row; flex-wrap: wrap; justify-content: center; }
     .mode { font-size: 16px; padding: 12px 16px; }
@@ -200,7 +222,7 @@
 </head>
 <body>
   <div class="top">
-    <a class="back" href="index.html">← К играм</a>
+    <a class="back" href="index.html">🏠 К играм</a>
     <div class="counters">
       <div class="streak" id="streak">🔥 0 подряд</div>
       <div class="record" id="record">🏆 0 рекорд</div>
@@ -238,6 +260,16 @@
       </div>
       <button class="btn" id="checkBtn">Проверить</button>
       <div class="feedback" id="feedback"></div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="confirmOverlay">
+    <div class="confirm-box">
+      <p id="confirmText">Выйти в меню? Прогресс не сохранится.</p>
+      <div class="confirm-actions">
+        <button class="cbtn cbtn-yes" id="cfYes">Да</button>
+        <button class="cbtn cbtn-no" id="cfNo">Остаться</button>
+      </div>
     </div>
   </div>
 
@@ -453,6 +485,33 @@
     if (e.key === "Backspace" || e.code === "Delete" ||
         e.code === "NumpadDecimal") {
       e.preventDefault(); backspace(); return;
+    }
+  });
+
+  // Лёгкое подтверждение действий, теряющих прогресс.
+  var confirmOverlay = document.getElementById("confirmOverlay");
+  var confirmText    = document.getElementById("confirmText");
+  var pendingYes = null;
+  function askConfirm(msg, onYes) {
+    confirmText.textContent = msg;
+    pendingYes = onYes;
+    confirmOverlay.classList.remove("hidden");
+  }
+  document.getElementById("cfYes").addEventListener("click", function () {
+    confirmOverlay.classList.add("hidden");
+    var fn = pendingYes; pendingYes = null; if (fn) fn();
+  });
+  document.getElementById("cfNo").addEventListener("click", function () {
+    confirmOverlay.classList.add("hidden"); pendingYes = null;
+  });
+
+  // Выход «К играм»: если уже набраны звёзды — мягко переспрашиваем.
+  document.querySelector(".back").addEventListener("click", function (e) {
+    if (stars > 0) {
+      e.preventDefault();
+      askConfirm("Выйти в меню? Звёздочки за эту игру не сохранятся.", function () {
+        window.location.href = "index.html";
+      });
     }
   });
 
