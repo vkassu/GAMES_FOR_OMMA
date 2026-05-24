@@ -536,5 +536,16 @@ document.getElementById('changeLevelBtn').addEventListener('click', showStart);
     localStorage.setItem('omma_plays_total',(parseInt(localStorage.getItem('omma_plays_total')||'0',10)||0)+1);
   }catch(e){}};
   </script>
+
+  <script>
+  (function(){
+    var css='html[data-theme="rainbow"] body{background:linear-gradient(135deg,#ffd3e0,#d4f1ff,#fff4c2)!important;}'
+      +'html[data-theme="flower"] body{background:linear-gradient(135deg,#ffe0ef,#f3e8ff)!important;}'
+      +'html[data-theme="space"] body{background:linear-gradient(160deg,#241e4e,#3b2d6b,#15213f)!important;}'
+      +'html[data-theme="space"] h1,html[data-theme="space"] .subtitle,html[data-theme="space"] .lead,html[data-theme="space"] .hello,html[data-theme="space"] .progress,html[data-theme="space"] .hint,html[data-theme="space"] .question,html[data-theme="space"] .score-line,html[data-theme="space"] .switcher-label{color:#eef2ff!important;}';
+    var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+    try{var t=localStorage.getItem('omma_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}
+  })();
+  </script>
 </body>
 </html>

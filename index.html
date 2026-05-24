@@ -105,6 +105,13 @@
   .hero-btn { font-size: 34px; background: #fff; border: 3px solid #eee; border-radius: 16px; padding: 6px 8px; cursor: pointer; line-height: 1; touch-action: manipulation; }
   .hero-btn.sel { border-color: var(--accent); background: #f5f3ff; }
   .setup-go { font: inherit; font-weight: 700; font-size: 18px; color: #fff; background: var(--accent); border: none; border-radius: 14px; padding: 12px 28px; cursor: pointer; touch-action: manipulation; }
+  .themebar { display: flex; gap: 8px; justify-content: center; margin: 0 auto 22px; }
+  .thbtn { font-size: 26px; background: #fff; border: 3px solid #eee; border-radius: 14px; padding: 6px 12px; cursor: pointer; line-height: 1; touch-action: manipulation; }
+  .thbtn.active { border-color: var(--accent); background: #f5f3ff; }
+  html[data-theme="rainbow"] body { background: linear-gradient(135deg,#ffd3e0,#d4f1ff,#fff4c2) !important; }
+  html[data-theme="flower"] body { background: linear-gradient(135deg,#ffe0ef,#f3e8ff) !important; }
+  html[data-theme="space"] body { background: linear-gradient(160deg,#241e4e,#3b2d6b,#15213f) !important; }
+  html[data-theme="space"] h1, html[data-theme="space"] .subtitle, html[data-theme="space"] .hello { color: #eef2ff !important; }
 </style>
 </head>
 <body>
@@ -117,6 +124,13 @@
   <div class="awards" id="awards">
     <div class="awards-total">⭐ <span id="totalStars">0</span> звёзд собрано</div>
     <div class="badges" id="badges"></div>
+  </div>
+
+  <div class="themebar" id="themebar">
+    <button class="thbtn" data-theme="" title="Обычная">☀️</button>
+    <button class="thbtn" data-theme="rainbow" title="Радуга">🌈</button>
+    <button class="thbtn" data-theme="flower" title="Цветочная">🌸</button>
+    <button class="thbtn" data-theme="space" title="Космос">🌌</button>
   </div>
 
   <div class="games">
@@ -222,6 +236,20 @@
   } else {
     badges.forEach(function(t){ var s = document.createElement('span'); s.className = 'badge'; s.textContent = t; bel.appendChild(s); });
   }
+
+  // Тема оформления (общая для всех игр через localStorage).
+  var themebar = document.getElementById('themebar');
+  function applyTheme(t){
+    if (t) document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+    var bs = themebar.querySelectorAll('.thbtn');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('active', bs[i].getAttribute('data-theme') === t);
+  }
+  applyTheme(ls('omma_theme') || '');
+  themebar.addEventListener('click', function(e){
+    var b = e.target.closest('.thbtn'); if (!b) return;
+    var t = b.getAttribute('data-theme'); sv('omma_theme', t); applyTheme(t);
+  });
 })();
 </script>
 </body>
