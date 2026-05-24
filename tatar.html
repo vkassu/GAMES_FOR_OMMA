@@ -173,7 +173,6 @@
   <div id="gameScreen" class="screen hidden">
     <div class="progress" id="progress">Слово 1 из 8</div>
     <div class="qcard">
-      <div class="q-emoji" id="qEmoji">👋</div>
       <div class="q-word" id="qWord">—</div>
       <div class="q-label" id="qLabel">выбери перевод</div>
     </div>
@@ -259,7 +258,6 @@ const gameScreen  = document.getElementById('gameScreen');
 const endScreen   = document.getElementById('endScreen');
 const gridEl      = document.getElementById('grid');
 const progressEl  = document.getElementById('progress');
-const qEmojiEl    = document.getElementById('qEmoji');
 const qWordEl     = document.getElementById('qWord');
 const qLabelEl    = document.getElementById('qLabel');
 const feedbackEl  = document.getElementById('feedback');
@@ -346,7 +344,6 @@ function renderQuestion() {
   else              { promptText = w[1]; answer = w[0]; qLabelEl.textContent = 'по-русски — выбери по-татарски'; }
 
   progressEl.textContent = SETS[currentSet].name + ' · слово ' + (pos + 1) + ' из ' + quizWords.length;
-  qEmojiEl.textContent = w[2];
   qWordEl.textContent = promptText;
 
   const others = shuffle(SETS[currentSet].words.filter(function(x){ return x !== w; }))

@@ -312,6 +312,7 @@ function drawMaze() {
     }
   }
   // звёздочки-собиралки
+  ctx.fillStyle = '#000';   // сброс альфы следа — иначе эмодзи рисуются бледными
   ctx.font = (s * 0.55) + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
