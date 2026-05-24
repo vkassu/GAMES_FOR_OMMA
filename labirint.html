@@ -375,7 +375,8 @@ function showEnd() {
     stars = '⭐'; title = 'Молодец!';
     summary = 'Все лабиринты пройдены. Чем больше играешь — тем быстрее находишь путь!';
   }
-  endTitleEl.textContent = title;
+  var nm = ''; try { nm = localStorage.getItem('omma_name') || ''; } catch (e) {}
+  endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
   starsEl.textContent = stars;
   endSummaryEl.textContent = summary;
   scoreLineEl.textContent = 'Уровень «' + LEVEL_NAMES[currentLevel] + '». Шагов: ' + totalMoves + ' (кратчайший путь: ' + totalOptimal + ')';

@@ -677,7 +677,8 @@ function showEnd() {
     stars = '⭐'; title = 'Молодец!';
     summary = 'Ты отгадала все загадки. Чем больше играешь — тем легче!';
   }
-  endTitleEl.textContent = title;
+  var nm = ''; try { nm = localStorage.getItem('omma_name') || ''; } catch (e) {}
+  endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
   starsEl.textContent = stars;
   endSummaryEl.textContent = summary;
   scoreLineEl.textContent = 'С первой попытки: ' + firstTryCount + ' из ' + total;

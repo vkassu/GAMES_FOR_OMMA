@@ -649,7 +649,8 @@ function showEnd() {
     stars = '⭐'; title = 'Молодец!';
     summary = 'Ты прошла все задания. Чем больше играешь — тем легче!';
   }
-  endTitleEl.textContent = title;
+  var nm = ''; try { nm = localStorage.getItem('omma_name') || ''; } catch (e) {}
+  endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
   starsEl.textContent = stars;
   endSummaryEl.textContent = summary;
   scoreLineEl.textContent = 'Уровень «' + LEVEL_NAMES[currentLevel] + '». С первой попытки: ' + firstTryCount + ' из ' + total;

@@ -414,6 +414,7 @@
     } else {
       msg = "Все пары собраны! 🎉";
     }
+    try { var _nm = localStorage.getItem("omma_name") || ""; if (_nm) msg = _nm + ", " + msg.charAt(0).toLowerCase() + msg.slice(1); } catch (e) {}
     showRecord();
     showFeedback(msg, "win");
     playWin();
