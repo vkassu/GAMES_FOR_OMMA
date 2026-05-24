@@ -147,6 +147,9 @@
     <h1>Английские слова</h1>
     <p class="lead">Выбери тему. Сначала можно «📖 Учить», потом проверить себя в игре.</p>
     <div class="sets" id="sets">
+      <button class="btn set-btn" data-set="pron">🙋 Я и ты</button>
+      <button class="btn set-btn" data-set="verbs">🏃 Действия</button>
+      <button class="btn set-btn" data-set="adj">🔠 Какой?</button>
       <button class="btn set-btn" data-set="greet">👋 Беседа</button>
       <button class="btn set-btn" data-set="family">👨‍👩‍👧 Семья</button>
       <button class="btn set-btn" data-set="animals">🐾 Животные</button>
@@ -276,6 +279,25 @@ const SETS = {
     ['Sky', 'Небо', '☁️'], ['Tree', 'Дерево', '🌳'], ['Flower', 'Цветок', '🌸'],
     ['Forest', 'Лес', '🌲'], ['Mountain', 'Гора', '⛰️'], ['Sea', 'Море', '🌊'],
     ['Rain', 'Дождь', '🌧️'], ['Snow', 'Снег', '❄️'], ['Fire', 'Огонь', '🔥']
+  ]},
+  /* --- Частотно-базовое ядро (список Сводеша / A1): учить в первую очередь.
+         У служебных слов и глаголов картинки нет — карточка показывает текст. --- */
+  pron: { name: '🙋 Я и ты', words: [
+    ['I', 'Я', '🙋'], ['You', 'Ты', ''], ['He / She', 'Он/Она', ''],
+    ['We', 'Мы', ''], ['You (all)', 'Вы', ''], ['They', 'Они', ''],
+    ['Who?', 'Кто?', ''], ['What?', 'Что?', ''], ['Where?', 'Где?', ''], ['This', 'Это', '']
+  ]},
+  verbs: { name: '🏃 Действия', words: [
+    ['Go', 'Идти', ''], ['Eat', 'Есть', '🍽️'], ['Drink', 'Пить', '🥤'],
+    ['Sleep', 'Спать', '😴'], ['See', 'Видеть', '👀'], ['Give', 'Давать', '🤲'],
+    ['Want', 'Хотеть', ''], ['Know', 'Знать', ''], ['Say', 'Говорить', '💬'],
+    ['Read', 'Читать', '📖'], ['Play', 'Играть', '🎲'], ['Run', 'Бежать', '🏃']
+  ]},
+  adj: { name: '🔠 Какой?', words: [
+    ['Big', 'Большой', ''], ['Small', 'Маленький', ''], ['Bad', 'Плохой', '👎'],
+    ['Warm', 'Тёплый', ''], ['Cold', 'Холодный', '🥶'], ['New', 'Новый', '🆕'],
+    ['Old', 'Старый', ''], ['Fast', 'Быстрый', ''], ['Beautiful', 'Красивый', ''],
+    ['Many', 'Много', ''], ['Few', 'Мало', ''], ['Long', 'Длинный', '']
   ]}
 };
 
@@ -325,7 +347,9 @@ function renderCard() {
   const words = SETS[currentSet].words;
   const w = words[studyIdx];
   document.getElementById('studyCounter').textContent = SETS[currentSet].name + ' · слово ' + (studyIdx + 1) + ' из ' + words.length;
-  document.getElementById('fcEmoji').textContent = w[2];
+  var fe = document.getElementById('fcEmoji');
+  fe.textContent = w[2] || '';
+  fe.style.display = w[2] ? '' : 'none';   // слова без картинки (служебные/глаголы) — только текст
   if (flipped) {
     document.getElementById('fcWord').textContent = w[1];
     document.getElementById('fcLabel').textContent = 'по-русски · нажми, чтобы вернуть';
