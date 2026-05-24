@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<!--
+  Игра «Татарские слова» — развивающая цель: ИЗУЧЕНИЕ ТАТАРСКИХ СЛОВ (татарско-русский).
+  Два режима: 📖 «Учить» (карточки-перевёртыши татарский↔русский) и 🎮 «Квиз»
+  (показывается слово — выбери перевод из 4 вариантов, направление чередуется).
+  Слова сгруппированы по 6 темам: беседа, семья, животные, еда, цвета, числа.
+  Навигация и плюшки как в других играх: верхний бар, конфетти, копилка звёзд,
+  имя в похвале, общие темы оформления.
+  Чистый HTML/CSS/JS, один файл, офлайн, работает по file:// и на iOS.
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Татарские слова">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Татарские слова</title>
+<style>
+  :root {
+    --bg1: #dcfce7;
+    --bg2: #e0f2fe;
+    --card: #ffffff;
+    --text: #1f2937;
+    --accent: #15803d;
+    --good: #22c55e;
+    --good-bg: #dcfce7;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(10px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  .screen { width: 100%; max-width: 560px; text-align: center; }
+  .hidden { display: none; }
+
+  h1 { font-size: clamp(26px, 6vw, 42px); margin: 0 0 10px; }
+  .lead { color: #4b5563; font-size: clamp(16px, 3.6vw, 21px); margin: 0 0 24px; }
+
+  .btn {
+    display: inline-block; border: none; border-radius: 18px;
+    padding: 16px 34px; font-size: clamp(18px, 4vw, 24px);
+    font-weight: 700; font-family: inherit; color: #fff; background: var(--accent);
+    cursor: pointer; box-shadow: 0 8px 20px rgba(21,128,61,0.30);
+    touch-action: manipulation; text-decoration: none;
+  }
+  .btn.secondary { background: #fff; color: var(--accent); box-shadow: 0 6px 16px rgba(21,128,61,0.16); }
+  @media (hover: hover) { .btn:hover { filter: brightness(1.05); } }
+  .btn:active { transform: scale(0.97); }
+
+  .topbar { width: 100%; max-width: 560px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .navbtn { font-family: inherit; font-weight: 700; font-size: clamp(13px, 3.2vw, 16px); border: none; background: #fff; color: var(--accent); border-radius: 999px; padding: 9px 14px; cursor: pointer; text-decoration: none; box-shadow: 0 4px 12px rgba(21,128,61,0.14); touch-action: manipulation; white-space: nowrap; }
+  .navbtn:active { transform: scale(0.96); }
+  .navright { display: flex; gap: 8px; }
+  .navright.hidden { display: none; }
+
+  .sets { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .set-btn { width: 300px; max-width: 100%; }
+
+  .progress { font-size: clamp(15px, 3.4vw, 19px); color: #6b7280; font-weight: 700; margin-bottom: 12px; }
+
+  /* карточка-вопрос */
+  .qcard { background: var(--card); border-radius: 24px; padding: 24px 18px; box-shadow: 0 12px 30px rgba(21,128,61,0.15); margin-bottom: 18px; }
+  .q-emoji { font-size: clamp(48px, 13vw, 72px); line-height: 1; }
+  .q-word { font-size: clamp(30px, 8vw, 50px); font-weight: 800; margin-top: 6px; }
+  .q-label { font-size: clamp(14px, 3.2vw, 17px); color: #6b7280; font-weight: 600; margin-top: 8px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .opt {
+    background: var(--card); border: 4px solid transparent; border-radius: 20px;
+    padding: 18px 12px; min-height: 72px; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: clamp(20px, 5vw, 28px); color: var(--text); cursor: pointer;
+    box-shadow: 0 8px 20px rgba(21,128,61,0.12);
+    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+    touch-action: manipulation; word-break: break-word;
+  }
+  @media (hover: hover) { .opt:hover { transform: translateY(-3px); border-color: var(--accent); } }
+  .opt:active { transform: scale(0.97); }
+  .opt.correct { background: var(--good-bg); border-color: var(--good); animation: pop 0.4s ease; }
+  .opt.wrong { animation: shake 0.45s ease; }
+  .opt.locked { pointer-events: none; }
+  .opt.dim { opacity: 0.45; }
+
+  @keyframes pop { 0%{transform:scale(1);} 45%{transform:scale(1.10);} 100%{transform:scale(1);} }
+  @keyframes shake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-9px);} 40%{transform:translateX(9px);} 60%{transform:translateX(-6px);} 80%{transform:translateX(6px);} }
+
+  .feedback { min-height: 38px; margin-top: 16px; font-size: clamp(18px, 4.2vw, 24px); font-weight: 700; }
+  .feedback.good { color: var(--good); }
+  .feedback.retry { color: #d97706; }
+  .next-wrap { min-height: 70px; margin-top: 12px; }
+
+  /* режим «Учить» — карточки */
+  .flashcard {
+    width: 100%; background: var(--card); border: none; border-radius: 24px;
+    padding: 34px 18px; box-shadow: 0 12px 30px rgba(21,128,61,0.15);
+    cursor: pointer; font-family: inherit; touch-action: manipulation;
+  }
+  .fc-emoji { font-size: clamp(52px, 14vw, 80px); line-height: 1; }
+  .fc-word { font-size: clamp(32px, 9vw, 54px); font-weight: 800; margin-top: 8px; }
+  .fc-label { font-size: clamp(13px, 3.2vw, 16px); color: #6b7280; font-weight: 600; margin-top: 10px; }
+  .study-nav { display: flex; gap: 12px; justify-content: center; align-items: center; margin-top: 18px; }
+  .arrow { font-size: 26px; font-weight: 800; border: none; background: #fff; color: var(--accent); border-radius: 16px; padding: 10px 18px; cursor: pointer; box-shadow: 0 6px 16px rgba(21,128,61,0.16); touch-action: manipulation; }
+  .arrow:active { transform: scale(0.94); }
+
+  .final-emoji { font-size: 72px; margin-bottom: 6px; }
+  .stars { font-size: clamp(40px, 11vw, 64px); letter-spacing: 6px; margin: 8px 0 4px; animation: pop 0.5s ease; }
+  .score-line { font-size: clamp(17px, 3.8vw, 22px); color: #4b5563; font-weight: 700; margin: 8px 0 26px; }
+  .final-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  .switcher { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+  .switcher-label { font-size: clamp(15px,3.4vw,18px); font-weight: 700; color: #6b7280; }
+  .game-pill { font-size: 30px; text-decoration: none; line-height: 1; background: #fff; border-radius: 16px; padding: 8px 12px; box-shadow: 0 6px 16px rgba(21,128,61,0.14); touch-action: manipulation; }
+  .game-pill:active { transform: scale(0.94); }
+
+  .overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .overlay.hidden { display: none; }
+  .confirm-box { background: #fff; border-radius: 24px; padding: 26px 24px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .confirm-box p { font-size: clamp(18px,4.4vw,22px); font-weight: 700; margin: 0 0 20px; }
+  .confirm-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .cbtn { font-family: inherit; font-weight: 700; font-size: clamp(16px,4vw,20px); border: none; border-radius: 14px; padding: 14px 26px; cursor: pointer; touch-action: manipulation; }
+  .cbtn-yes { background: var(--accent); color: #fff; }
+  .cbtn-no  { background: #eee; color: #1f2937; }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <a class="navbtn" id="homeBtn" href="index.html">🏠 К играм</a>
+    <div class="navright hidden" id="navRight">
+      <button class="navbtn" id="studyBtn">📖 Учить</button>
+      <button class="navbtn" id="restartBtn">🔄 Заново</button>
+    </div>
+  </header>
+
+  <!-- Экран старта: выбор набора слов -->
+  <div id="startScreen" class="screen">
+    <div class="final-emoji">🗣️</div>
+    <h1>Татарские слова</h1>
+    <p class="lead">Выбери тему. Сначала можно «📖 Учить», потом проверить себя в игре.</p>
+    <div class="sets" id="sets">
+      <button class="btn set-btn" data-set="greet">👋 Беседа</button>
+      <button class="btn set-btn" data-set="family">👨‍👩‍👧 Семья</button>
+      <button class="btn set-btn" data-set="animals">🐾 Животные</button>
+      <button class="btn set-btn" data-set="food">🍎 Еда</button>
+      <button class="btn set-btn" data-set="colors">🎨 Цвета</button>
+      <button class="btn set-btn" data-set="numbers">🔢 Числа</button>
+    </div>
+  </div>
+
+  <!-- Режим «Учить» (карточки) -->
+  <div id="studyScreen" class="screen hidden">
+    <div class="progress" id="studyCounter">Слово 1 из 8</div>
+    <button class="flashcard" id="flashcard">
+      <div class="q-emoji" id="fcEmoji">👋</div>
+      <div class="fc-word" id="fcWord">—</div>
+      <div class="fc-label" id="fcLabel">по-татарски · нажми, чтобы перевести</div>
+    </button>
+    <div class="study-nav">
+      <button class="arrow" id="prevCard">◀</button>
+      <button class="btn" id="toQuiz">Играть ▶</button>
+      <button class="arrow" id="nextCard">▶</button>
+    </div>
+  </div>
+
+  <!-- Игровой экран (квиз) -->
+  <div id="gameScreen" class="screen hidden">
+    <div class="progress" id="progress">Слово 1 из 8</div>
+    <div class="qcard">
+      <div class="q-emoji" id="qEmoji">👋</div>
+      <div class="q-word" id="qWord">—</div>
+      <div class="q-label" id="qLabel">выбери перевод</div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="feedback" id="feedback"></div>
+    <div class="next-wrap" id="nextWrap"></div>
+  </div>
+
+  <!-- Финальный экран -->
+  <div id="endScreen" class="screen hidden">
+    <div class="final-emoji">🌟</div>
+    <h1 id="endTitle">Молодец!</h1>
+    <div class="stars" id="stars"></div>
+    <p class="lead" id="endSummary">Все слова пройдены!</p>
+    <p class="score-line" id="scoreLine"></p>
+    <div class="final-buttons">
+      <button class="btn" id="againBtn">Ещё раз 🔁</button>
+      <button class="btn secondary" id="studyAgainBtn">📖 Учить</button>
+      <button class="btn secondary" id="changeSetBtn">Другая тема</button>
+    </div>
+    <div class="switcher">
+      <span class="switcher-label">Другая игра:</span>
+      <a class="game-pill" href="matematika.html" title="Математика">🧮</a>
+      <a class="game-pill" href="pamyat.html" title="Память">🧠</a>
+      <a class="game-pill" href="naydi-lishnee.html" title="Найди лишнее">🔍</a>
+      <a class="game-pill" href="zagadki.html" title="Загадки">🤔</a>
+      <a class="game-pill" href="chasy.html" title="Который час?">🕐</a>
+      <a class="game-pill" href="magazin.html" title="Магазин и сдача">🛒</a>
+      <a class="game-pill" href="labirint.html" title="Лабиринт">🌀</a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="confirmOverlay">
+    <div class="confirm-box">
+      <p id="confirmText">Выйти? Прогресс не сохранится.</p>
+      <div class="confirm-actions">
+        <button class="cbtn cbtn-yes" id="cfYes">Да</button>
+        <button class="cbtn cbtn-no" id="cfNo">Остаться</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+/* ---------- Словарь: [татарское, русское, эмодзи] ----------
+   Слова проверены; в татарском используются буквы ә, ө, ү, җ, ң, һ. */
+const SETS = {
+  greet: { name: '👋 Беседа', words: [
+    ['Исәнме', 'Привет', '👋'], ['Рәхмәт', 'Спасибо', '🙏'], ['Әйе', 'Да', '✅'],
+    ['Юк', 'Нет', '❌'], ['Сау бул', 'Пока', '👋'], ['Яхшы', 'Хорошо', '👍'],
+    ['Дус', 'Друг', '🤝'], ['Зинһар', 'Пожалуйста', '🙂']
+  ]},
+  family: { name: '👨‍👩‍👧 Семья', words: [
+    ['Әни', 'Мама', '👩'], ['Әти', 'Папа', '👨'], ['Әби', 'Бабушка', '👵'],
+    ['Бабай', 'Дедушка', '👴'], ['Малай', 'Мальчик', '👦'], ['Кыз', 'Девочка', '👧'],
+    ['Бала', 'Ребёнок', '🧒'], ['Гаилә', 'Семья', '👨‍👩‍👧']
+  ]},
+  animals: { name: '🐾 Животные', words: [
+    ['Песи', 'Кошка', '🐱'], ['Эт', 'Собака', '🐶'], ['Сыер', 'Корова', '🐮'],
+    ['Ат', 'Лошадь', '🐴'], ['Аю', 'Медведь', '🐻'], ['Төлке', 'Лиса', '🦊'],
+    ['Куян', 'Заяц', '🐰'], ['Бүре', 'Волк', '🐺'], ['Кош', 'Птица', '🐦'], ['Балык', 'Рыба', '🐟']
+  ]},
+  food: { name: '🍎 Еда', words: [
+    ['Икмәк', 'Хлеб', '🍞'], ['Су', 'Вода', '💧'], ['Сөт', 'Молоко', '🥛'],
+    ['Алма', 'Яблоко', '🍎'], ['Бал', 'Мёд', '🍯'], ['Чәй', 'Чай', '🍵'],
+    ['Ит', 'Мясо', '🍖'], ['Май', 'Масло', '🧈']
+  ]},
+  colors: { name: '🎨 Цвета', words: [
+    ['Кызыл', 'Красный', '🔴'], ['Ак', 'Белый', '⚪'], ['Кара', 'Чёрный', '⚫'],
+    ['Сары', 'Жёлтый', '🟡'], ['Яшел', 'Зелёный', '🟢'], ['Зәңгәр', 'Синий', '🔵']
+  ]},
+  numbers: { name: '🔢 Числа', words: [
+    ['Бер', 'Один', '1️⃣'], ['Ике', 'Два', '2️⃣'], ['Өч', 'Три', '3️⃣'],
+    ['Дүрт', 'Четыре', '4️⃣'], ['Биш', 'Пять', '5️⃣'], ['Алты', 'Шесть', '6️⃣'],
+    ['Җиде', 'Семь', '7️⃣'], ['Сигез', 'Восемь', '8️⃣'], ['Тугыз', 'Девять', '9️⃣'], ['Ун', 'Десять', '🔟']
+  ]}
+};
+
+const startScreen = document.getElementById('startScreen');
+const studyScreen = document.getElementById('studyScreen');
+const gameScreen  = document.getElementById('gameScreen');
+const endScreen   = document.getElementById('endScreen');
+const gridEl      = document.getElementById('grid');
+const progressEl  = document.getElementById('progress');
+const qEmojiEl    = document.getElementById('qEmoji');
+const qWordEl     = document.getElementById('qWord');
+const qLabelEl    = document.getElementById('qLabel');
+const feedbackEl  = document.getElementById('feedback');
+const nextWrapEl  = document.getElementById('nextWrap');
+const scoreLineEl = document.getElementById('scoreLine');
+const starsEl     = document.getElementById('stars');
+const endTitleEl  = document.getElementById('endTitle');
+const endSummaryEl= document.getElementById('endSummary');
+const navRight    = document.getElementById('navRight');
+
+let currentSet = 'greet';
+let quizWords = [];
+let pos = 0;
+let firstTryCount = 0;
+let triedThis = false;
+let answer = '';
+// «Учить»
+let studyIdx = 0;
+let flipped = false;
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+/* ---------- Режим «Учить» (карточки) ---------- */
+function openStudy() {
+  studyIdx = 0; flipped = false;
+  startScreen.classList.add('hidden');
+  gameScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  studyScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');
+  renderCard();
+}
+function renderCard() {
+  const words = SETS[currentSet].words;
+  const w = words[studyIdx];
+  document.getElementById('studyCounter').textContent = SETS[currentSet].name + ' · слово ' + (studyIdx + 1) + ' из ' + words.length;
+  document.getElementById('fcEmoji').textContent = w[2];
+  if (flipped) {
+    document.getElementById('fcWord').textContent = w[1];
+    document.getElementById('fcLabel').textContent = 'по-русски · нажми, чтобы вернуть';
+  } else {
+    document.getElementById('fcWord').textContent = w[0];
+    document.getElementById('fcLabel').textContent = 'по-татарски · нажми, чтобы перевести';
+  }
+}
+document.getElementById('flashcard').addEventListener('click', function(){ flipped = !flipped; renderCard(); });
+document.getElementById('prevCard').addEventListener('click', function(){
+  const n = SETS[currentSet].words.length; studyIdx = (studyIdx - 1 + n) % n; flipped = false; renderCard();
+});
+document.getElementById('nextCard').addEventListener('click', function(){
+  const n = SETS[currentSet].words.length; studyIdx = (studyIdx + 1) % n; flipped = false; renderCard();
+});
+document.getElementById('toQuiz').addEventListener('click', function(){ startGame(currentSet); });
+
+/* ---------- Квиз ---------- */
+function startGame(setKey) {
+  ensureAudio();
+  currentSet = setKey;
+  quizWords = shuffle(SETS[setKey].words.slice());
+  pos = 0;
+  firstTryCount = 0;
+  startScreen.classList.add('hidden');
+  studyScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  gameScreen.classList.remove('hidden');
+  navRight.classList.remove('hidden');
+  renderQuestion();
+}
+
+function renderQuestion() {
+  triedThis = false;
+  feedbackEl.textContent = '';
+  feedbackEl.className = 'feedback';
+  nextWrapEl.innerHTML = '';
+
+  const w = quizWords[pos];
+  const dir = Math.random() < 0.5 ? 'tr' : 'rt';   // tr: татарское→русское, rt: наоборот
+  let promptText;
+  if (dir === 'tr') { promptText = w[0]; answer = w[1]; qLabelEl.textContent = 'по-татарски — выбери перевод'; }
+  else              { promptText = w[1]; answer = w[0]; qLabelEl.textContent = 'по-русски — выбери по-татарски'; }
+
+  progressEl.textContent = SETS[currentSet].name + ' · слово ' + (pos + 1) + ' из ' + quizWords.length;
+  qEmojiEl.textContent = w[2];
+  qWordEl.textContent = promptText;
+
+  const others = shuffle(SETS[currentSet].words.filter(function(x){ return x !== w; }))
+    .slice(0, 3).map(function(x){ return dir === 'tr' ? x[1] : x[0]; });
+  const opts = shuffle([answer].concat(others));
+
+  gridEl.innerHTML = '';
+  opts.forEach(function(o){
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'opt';
+    cell.textContent = o;
+    cell.addEventListener('click', function(){ onPick(cell, o === answer); });
+    gridEl.appendChild(cell);
+  });
+}
+
+function onPick(cell, isCorrect) {
+  ensureAudio();
+  if (isCorrect) {
+    cell.classList.add('correct', 'locked');
+    [].forEach.call(gridEl.children, function(c){ c.classList.add('locked'); if (c !== cell) c.classList.add('dim'); });
+    if (!triedThis) firstTryCount++;
+    playGood();
+    feedbackEl.textContent = 'Дөрес! (Верно!) 🎉';
+    feedbackEl.className = 'feedback good';
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn';
+    nextBtn.textContent = (pos + 1 < quizWords.length) ? 'Дальше ▶' : 'Закончить ✓';
+    nextBtn.addEventListener('click', goNext);
+    nextWrapEl.innerHTML = '';
+    nextWrapEl.appendChild(nextBtn);
+  } else {
+    triedThis = true;
+    playRetry();
+    cell.classList.remove('wrong');
+    void cell.offsetWidth;
+    cell.classList.add('wrong');
+    feedbackEl.textContent = 'Попробуй ещё раз 🙂';
+    feedbackEl.className = 'feedback retry';
+  }
+}
+
+function goNext() {
+  pos++;
+  if (pos < quizWords.length) renderQuestion();
+  else showEnd();
+}
+
+function showStart() {
+  studyScreen.classList.add('hidden');
+  gameScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');
+}
+
+function showEnd() {
+  gameScreen.classList.add('hidden');
+  endScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');
+
+  const total = quizWords.length;
+  let stars, title, summary;
+  if (firstTryCount >= total - 1) {
+    stars = '⭐⭐⭐'; title = 'Афәрин!';
+    summary = 'Почти всё с первой попытки — ты молодец! («Афәрин» — молодец)';
+  } else if (firstTryCount >= Math.ceil(total * 0.6)) {
+    stars = '⭐⭐'; title = 'Здорово!';
+    summary = 'Хороший результат! Повтори слова в режиме «📖 Учить» — и будет три звёздочки.';
+  } else {
+    stars = '⭐'; title = 'Молодец!';
+    summary = 'Слова запоминаются не сразу. Загляни в «📖 Учить» и попробуй ещё!';
+  }
+  var nm = ''; try { nm = localStorage.getItem('omma_name') || ''; } catch (e) {}
+  endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
+  starsEl.textContent = stars;
+  endSummaryEl.textContent = summary;
+  scoreLineEl.textContent = SETS[currentSet].name + '. С первой попытки: ' + firstTryCount + ' из ' + total;
+  playGood();
+  if (window.fireConfetti) fireConfetti();
+  if (window.awardStars) awardStars('tatar', stars.length);
+}
+
+/* ---------- Звук ---------- */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freqs, dur, type) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  freqs.forEach(function(f, i){
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = type || 'sine'; o.frequency.value = f;
+    const t0 = now + i * 0.12;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  });
+}
+const playGood  = function(){ tone([523.25, 659.25, 783.99], 0.22); };
+const playRetry = function(){ tone([330, 247], 0.16, 'triangle'); };
+
+/* ---------- Навигация и подтверждение ---------- */
+const confirmOverlay = document.getElementById('confirmOverlay');
+const confirmTextEl  = document.getElementById('confirmText');
+let pendingYes = null;
+function askConfirm(msg, onYes) { confirmTextEl.textContent = msg; pendingYes = onYes; confirmOverlay.classList.remove('hidden'); }
+document.getElementById('cfYes').addEventListener('click', function(){ confirmOverlay.classList.add('hidden'); const fn = pendingYes; pendingYes = null; if (fn) fn(); });
+document.getElementById('cfNo').addEventListener('click', function(){ confirmOverlay.classList.add('hidden'); pendingYes = null; });
+
+function midGame() { return !gameScreen.classList.contains('hidden') && pos > 0; }
+
+document.querySelectorAll('.set-btn').forEach(function(b){
+  b.addEventListener('click', function(){ ensureAudio(); currentSet = b.getAttribute('data-set'); openStudy(); });
+});
+document.getElementById('homeBtn').addEventListener('click', function(e){
+  if (midGame()) { e.preventDefault(); askConfirm('Выйти в меню? Эта игра не сохранится.', function(){ window.location.href = 'index.html'; }); }
+});
+document.getElementById('studyBtn').addEventListener('click', function(){
+  if (midGame()) askConfirm('Перейти к карточкам? Эта игра не сохранится.', openStudy); else openStudy();
+});
+document.getElementById('restartBtn').addEventListener('click', function(){
+  if (midGame()) askConfirm('Начать заново? Эта игра не сохранится.', function(){ startGame(currentSet); }); else startGame(currentSet);
+});
+document.getElementById('againBtn').addEventListener('click', function(){ startGame(currentSet); });
+document.getElementById('studyAgainBtn').addEventListener('click', openStudy);
+document.getElementById('changeSetBtn').addEventListener('click', showStart);
+</script>
+
+  <canvas id="confetti" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;"></canvas>
+  <script>
+  (function(){
+    var cv=document.getElementById('confetti'), cx=cv.getContext('2d'), parts=[], raf=null;
+    function resize(){ cv.width=window.innerWidth; cv.height=window.innerHeight; }
+    window.addEventListener('resize',resize); resize();
+    var EMO=['⭐','🌟','💖','💛','✨','🎉','🌸'];
+    window.fireConfetti=function(){
+      resize();
+      for(var i=0;i<40;i++){
+        parts.push({x:cv.width*(0.2+Math.random()*0.6), y:cv.height*0.3+(Math.random()-0.5)*60,
+          vx:(Math.random()-0.5)*9, vy:-7-Math.random()*7, g:0.28+Math.random()*0.15,
+          s:18+Math.random()*16, rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3,
+          e:EMO[Math.floor(Math.random()*EMO.length)], life:0});
+      }
+      if(!raf) raf=requestAnimationFrame(step);
+    };
+    function step(){
+      cx.clearRect(0,0,cv.width,cv.height);
+      for(var i=0;i<parts.length;i++){ var p=parts[i];
+        p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life++;
+        cx.save(); cx.translate(p.x,p.y); cx.rotate(p.rot);
+        cx.font=p.s+'px "Segoe UI Emoji","Apple Color Emoji",system-ui,sans-serif';
+        cx.textAlign='center'; cx.textBaseline='middle';
+        cx.globalAlpha=Math.max(0,1-p.life/130);
+        cx.fillText(p.e,0,0); cx.restore();
+      }
+      parts=parts.filter(function(p){return p.life<130 && p.y<cv.height+50;});
+      if(parts.length) raf=requestAnimationFrame(step); else { cx.clearRect(0,0,cv.width,cv.height); raf=null; }
+    }
+  })();
+  window.awardStars=function(game,n){try{
+    localStorage.setItem('omma_stars_total',(parseInt(localStorage.getItem('omma_stars_total')||'0',10)||0)+n);
+    var bk='omma_best_'+game, b=parseInt(localStorage.getItem(bk)||'0',10)||0; if(n>b) localStorage.setItem(bk,n);
+    localStorage.setItem('omma_plays_total',(parseInt(localStorage.getItem('omma_plays_total')||'0',10)||0)+1);
+  }catch(e){}};
+  </script>
+
+  <script>
+  (function(){
+    var css='html[data-theme="rainbow"] body{background:linear-gradient(135deg,#ffd3e0,#d4f1ff,#fff4c2)!important;}'
+      +'html[data-theme="flower"] body{background:linear-gradient(135deg,#ffe0ef,#f3e8ff)!important;}'
+      +'html[data-theme="space"] body{background:linear-gradient(160deg,#241e4e,#3b2d6b,#15213f)!important;}'
+      +'html[data-theme="space"] h1,html[data-theme="space"] .subtitle,html[data-theme="space"] .lead,html[data-theme="space"] .hello,html[data-theme="space"] .progress,html[data-theme="space"] .hint,html[data-theme="space"] .question,html[data-theme="space"] .score-line,html[data-theme="space"] .switcher-label,html[data-theme="space"] .q-label,html[data-theme="space"] .fc-label{color:#eef2ff!important;}';
+    var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+    try{var t=localStorage.getItem('omma_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}
+  })();
+  </script>
+</body>
+</html>
