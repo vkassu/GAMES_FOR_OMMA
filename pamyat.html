@@ -103,6 +103,17 @@
     color: #fff;
     border-color: #7c3aed;
   }
+  .themes {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    width: 100%; max-width: 880px; margin: 0 auto 14px;
+  }
+  .theme {
+    font-size: 26px; background: #fff; border: 3px solid #c4b5fd;
+    border-radius: 14px; padding: 6px 12px; cursor: pointer; line-height: 1;
+    touch-action: manipulation; transition: transform 0.08s ease, background 0.08s ease;
+  }
+  .theme:active { transform: scale(0.92); }
+  .theme.active { background: #7c3aed; border-color: #7c3aed; }
   .card {
     background: #fff;
     border-radius: 28px;
@@ -238,6 +249,14 @@
     </div>
   </div>
 
+  <div class="themes" id="themes">
+    <button class="theme active" data-theme="animals" title="Зверюшки">🐾</button>
+    <button class="theme" data-theme="sweets" title="Сладости">🍰</button>
+    <button class="theme" data-theme="flowers" title="Цветы">🌸</button>
+    <button class="theme" data-theme="faces" title="Смайлики">😀</button>
+    <button class="theme" data-theme="transport" title="Машинки">🚗</button>
+  </div>
+
   <div class="layout">
     <nav class="menu" id="menu">
       <button class="mode active" data-mode="easy">🙂 Лёгкий</button>
@@ -275,11 +294,21 @@
   var newBtn     = document.getElementById("newBtn");
   var menuEl     = document.getElementById("menu");
 
-  // Дружелюбные, хорошо различимые для ребёнка картинки.
-  var EMOJI = ["🐶","🐱","🦊","🐰","🐼","🐨","🦁","🐯","🐸","🐵",
-               "🦄","🐝","🦋","🐢","🐬","🐙","🦀","🐠","🐧","🦉",
-               "🐷","🐮","🐔","🦓","🦒","🦘","🦔","🐳","🦈","🦩",
-               "🦜","🐞"];
+  // Тематические наборы картинок (все эмодзи — «старые», есть в любом шрифте).
+  var THEMES = {
+    animals: ["🐶","🐱","🦊","🐰","🐼","🐨","🦁","🐯","🐸","🐵",
+              "🦄","🐝","🦋","🐢","🐬","🐙","🦀","🐠","🐧","🦉",
+              "🐷","🐮","🐔","🦓","🦒","🦘","🦔","🐳","🦈","🦩","🦜","🐞"],
+    sweets:  ["🍎","🍐","🍊","🍋","🍌","🍉","🍇","🍓","🍒","🍑",
+              "🍍","🥝","🍅","🍰","🧁","🍩","🍪","🍫","🍬","🍭","🍮","🍯","🍦","🍨","🍧"],
+    flowers: ["🌸","🌷","🌹","🌻","🌼","🌺","🌵","🌲","🌳","🌴",
+              "🍀","🌿","🍁","🍂","🍃","🌾","🌱","🍄","🌰","🌙","⭐","🌈","☀️","🐚"],
+    faces:   ["😀","😁","😄","😆","😅","😂","🙂","😉","😊","😍",
+              "🥰","😎","🤩","😜","😝","🤗","🤔","😺","😸","😻","🙃","😋","😛","🤓"],
+    transport:["🚗","🚕","🚙","🚌","🚎","🏎️","🚓","🚑","🚒","🚐",
+              "🚚","🚛","🚜","🚲","🛵","🏍️","🚂","🚆","🚄","✈️","🚀","🚁","⛵","🚢","🛴"]
+  };
+  var currentTheme = "animals";
 
   // Уровни: число пар, столбцов и ширина поля на широком экране.
   var MODES = {
@@ -385,7 +414,7 @@
     boardEl.style.setProperty("--cols", cfg.cols);
     boardEl.style.setProperty("--bw", cfg.bw + "px");
 
-    var pool = shuffle(EMOJI.slice()).slice(0, cfg.pairs);
+    var pool = shuffle(THEMES[currentTheme].slice()).slice(0, cfg.pairs);
     deck = shuffle(pool.concat(pool));   // каждая картинка дважды
 
     boardEl.innerHTML = "";
@@ -493,6 +522,21 @@
     } else {
       selectMode(btn);
     }
+  });
+
+  // Выбор набора картинок.
+  document.getElementById("themes").addEventListener("click", function (e) {
+    var btn = e.target.closest(".theme");
+    if (!btn) return;
+    function apply() {
+      currentTheme = btn.getAttribute("data-theme");
+      var all = document.querySelectorAll(".theme");
+      for (var i = 0; i < all.length; i++) all[i].classList.remove("active");
+      btn.classList.add("active");
+      buildBoard();
+    }
+    if (midBoard()) askConfirm("Сменить набор? Текущая игра не сохранится.", apply);
+    else apply();
   });
 
   newBtn.addEventListener("click", function () {
