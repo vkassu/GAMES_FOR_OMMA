@@ -211,6 +211,16 @@ let mazeIndex = 0;      // какой лабиринт по счёту (0-based)
 let totalMoves = 0;
 let totalOptimal = 0;
 let solvedLock = false; // пауза между лабиринтами
+let coins = new Set();      // клетки со звёздочками
+let coinsGot = 0;
+const coinsPerMaze = 3;
+let totalCoinsGot = 0, totalCoinsAll = 0;
+let visited = [];           // пройденные клетки (для следа)
+
+function updateProgress() {
+  progressEl.textContent = LEVEL_NAMES[currentLevel] + ' · Лабиринт ' + (mazeIndex + 1) +
+    ' из ' + MAZES_PER_GAME + ' · ⭐ ' + coinsGot + '/' + (coinsGot + coins.size);
+}
 
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function idx(r, c) { return r * cols + c; }
@@ -291,6 +301,21 @@ function drawMaze() {
     }
   }
 
+  // след пройденного пути
+  ctx.fillStyle = 'rgba(79,70,229,0.18)';
+  for (var tr = 0; tr < rows; tr++) for (var tc = 0; tc < cols; tc++) {
+    if (visited[idx(tr, tc)] && !(tr === pr && tc === pc)) {
+      ctx.beginPath();
+      ctx.arc((tc + 0.5) * s, (tr + 0.5) * s, Math.max(2, s * 0.10), 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  }
+  // звёздочки-собиралки
+  ctx.font = (s * 0.55) + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  coins.forEach(function (ci) { ctx.fillText('⭐', ((ci % cols) + 0.5) * s, (Math.floor(ci / cols) + 0.5) * s); });
+
   ctx.font = (s * 0.7) + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -305,7 +330,17 @@ function newMaze() {
   moves = 0;
   optimal = shortestPath();
   solvedLock = false;
-  progressEl.textContent = LEVEL_NAMES[currentLevel] + ' · Лабиринт ' + (mazeIndex + 1) + ' из ' + MAZES_PER_GAME;
+  // расставляем звёздочки-собиралки (не на старте и не на сыре)
+  coins = new Set();
+  var goalCell = idx(rows - 1, cols - 1), guard = 0;
+  while (coins.size < coinsPerMaze && guard++ < 500) {
+    var ci = randInt(1, cols * rows - 1);    // не старт (клетка 0)
+    if (ci !== goalCell) coins.add(ci);
+  }
+  coinsGot = 0; totalCoinsAll += coins.size;
+  visited = new Array(cols * rows).fill(false);
+  visited[idx(0, 0)] = true;
+  updateProgress();
   feedbackEl.textContent = '';
   feedbackEl.className = 'feedback';
   drawMaze();
@@ -318,6 +353,9 @@ function tryMove(d) {
   if (open & d) {
     pr += DR[d]; pc += DC[d];
     moves++;
+    var cell = idx(pr, pc);
+    visited[cell] = true;
+    if (coins.has(cell)) { coins.delete(cell); coinsGot++; totalCoinsGot++; playCoin(); updateProgress(); }
     drawMaze();
     if (pr === rows - 1 && pc === cols - 1) onSolve();
   }
@@ -343,6 +381,8 @@ function startGame(level) {
   mazeIndex = 0;
   totalMoves = 0;
   totalOptimal = 0;
+  totalCoinsGot = 0;
+  totalCoinsAll = 0;
   startScreen.classList.add('hidden');
   endScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
@@ -379,7 +419,8 @@ function showEnd() {
   endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
   starsEl.textContent = stars;
   endSummaryEl.textContent = summary;
-  scoreLineEl.textContent = 'Уровень «' + LEVEL_NAMES[currentLevel] + '». Шагов: ' + totalMoves + ' (кратчайший путь: ' + totalOptimal + ')';
+  scoreLineEl.textContent = 'Уровень «' + LEVEL_NAMES[currentLevel] + '». Шагов: ' + totalMoves +
+    ' · собрано ⭐ ' + totalCoinsGot + '/' + totalCoinsAll;
   playGood();
   if (window.fireConfetti) fireConfetti();
   if (window.awardStars) awardStars('labirint', stars.length);
@@ -441,6 +482,7 @@ function tone(freqs, dur, type) {
   });
 }
 const playGood = () => tone([523.25, 659.25, 783.99], 0.22);
+const playCoin = () => tone([880, 1175], 0.10);
 
 /* ---------- Навигация и подтверждение выхода ---------- */
 const confirmOverlay = document.getElementById('confirmOverlay');
