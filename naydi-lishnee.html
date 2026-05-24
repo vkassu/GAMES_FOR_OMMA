@@ -654,6 +654,7 @@ function showEnd() {
   endSummaryEl.textContent = summary;
   scoreLineEl.textContent = 'Уровень «' + LEVEL_NAMES[currentLevel] + '». С первой попытки: ' + firstTryCount + ' из ' + total;
   playGood();
+  if (window.fireConfetti) fireConfetti();
 }
 
 /* ---------- Навигация и подтверждение выхода ---------- */
@@ -701,5 +702,38 @@ document.getElementById('restartBtn').addEventListener('click', () => {
 document.getElementById('againBtn').addEventListener('click', () => startGame(currentLevel));
 document.getElementById('changeLevelBtn').addEventListener('click', showStart);
 </script>
+
+  <canvas id="confetti" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;"></canvas>
+  <script>
+  (function(){
+    var cv=document.getElementById('confetti'), cx=cv.getContext('2d'), parts=[], raf=null;
+    function resize(){ cv.width=window.innerWidth; cv.height=window.innerHeight; }
+    window.addEventListener('resize',resize); resize();
+    var EMO=['⭐','🌟','💖','💛','✨','🎉','🌸'];
+    window.fireConfetti=function(){
+      resize();
+      for(var i=0;i<40;i++){
+        parts.push({x:cv.width*(0.2+Math.random()*0.6), y:cv.height*0.3+(Math.random()-0.5)*60,
+          vx:(Math.random()-0.5)*9, vy:-7-Math.random()*7, g:0.28+Math.random()*0.15,
+          s:18+Math.random()*16, rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3,
+          e:EMO[Math.floor(Math.random()*EMO.length)], life:0});
+      }
+      if(!raf) raf=requestAnimationFrame(step);
+    };
+    function step(){
+      cx.clearRect(0,0,cv.width,cv.height);
+      for(var i=0;i<parts.length;i++){ var p=parts[i];
+        p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life++;
+        cx.save(); cx.translate(p.x,p.y); cx.rotate(p.rot);
+        cx.font=p.s+'px "Segoe UI Emoji","Apple Color Emoji",system-ui,sans-serif';
+        cx.textAlign='center'; cx.textBaseline='middle';
+        cx.globalAlpha=Math.max(0,1-p.life/130);
+        cx.fillText(p.e,0,0); cx.restore();
+      }
+      parts=parts.filter(function(p){return p.life<130 && p.y<cv.height+50;});
+      if(parts.length) raf=requestAnimationFrame(step); else { cx.clearRect(0,0,cv.width,cv.height); raf=null; }
+    }
+  })();
+  </script>
 </body>
 </html>
