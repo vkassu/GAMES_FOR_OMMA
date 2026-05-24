@@ -184,6 +184,10 @@
 const SIZES = { 1: 7, 2: 10, 3: 14 };
 const LEVEL_NAMES = { 1: 'Маленький', 2: 'Средний', 3: 'Большой' };
 const MAZES_PER_GAME = 5;
+// Доля тупиков, которые «расшиваем» в петли (braiding): больше число = больше
+// альтернативных маршрутов и развилок (и чуть легче). Маленький уровень —
+// побольше выбора; большой и так ветвистый, петель меньше.
+const BRAID = { 1: 0.30, 2: 0.22, 3: 0.15 };
 
 // Направления (битовая маска открытых сторон клетки).
 const N = 1, E = 2, S = 4, W = 8;
@@ -207,6 +211,7 @@ let currentLevel = 1;
 let cols = 7, rows = 7;
 let grid = [];          // open-маска по клеткам
 let pr = 0, pc = 0;     // позиция мышки (row, col)
+let gr = 0, gc = 0;     // позиция сыра (конец самого длинного маршрута от старта)
 let moves = 0;
 let optimal = 0;
 let mazeIndex = 0;      // какой лабиринт по счёту (0-based)
@@ -227,33 +232,76 @@ function updateProgress() {
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function idx(r, c) { return r * cols + c; }
 
-/* ---------- Генерация лабиринта (DFS с возвратом) ---------- */
+/* ---------- Генерация лабиринта (рандомизированный Прим + braiding) ----------
+   Прим даёт «ветвистый» лабиринт с частыми развилками — на пути к сыру много
+   точек выбора (в отличие от DFS, который рисует один длинный коридор и прячет
+   половину карты в хвосте у финиша). Затем braiding расшивает часть тупиков,
+   пробивая лишние проходы: появляются петли и НЕСКОЛЬКО маршрутов к сыру. */
 function genMaze() {
   grid = new Array(cols * rows).fill(0);
-  const visited = new Array(cols * rows).fill(false);
-  const stack = [[0, 0]];
-  visited[idx(0, 0)] = true;
-  while (stack.length) {
-    const [cr, cc] = stack[stack.length - 1];
-    const dirs = [N, E, S, W].filter((d) => {
-      const nr = cr + DR[d], nc = cc + DC[d];
-      return nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited[idx(nr, nc)];
+  const inMaze = new Array(cols * rows).fill(false);
+  const frontier = [];                       // клетки, граничащие с готовым лабиринтом
+  function addFrontier(r, c) {
+    [N, E, S, W].forEach(function (d) {
+      const nr = r + DR[d], nc = c + DC[d];
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !inMaze[idx(nr, nc)]
+          && !frontier.some(function (f) { return f[0] === nr && f[1] === nc; })) {
+        frontier.push([nr, nc]);
+      }
     });
-    if (!dirs.length) { stack.pop(); continue; }
+  }
+  inMaze[idx(0, 0)] = true;
+  addFrontier(0, 0);
+  while (frontier.length) {
+    const pick = randInt(0, frontier.length - 1);
+    const fc = frontier.splice(pick, 1)[0];
+    const r = fc[0], c = fc[1];
+    if (inMaze[idx(r, c)]) continue;
+    // подключаем клетку к случайному уже-готовому соседу
+    const dirs = [N, E, S, W].filter(function (d) {
+      const nr = r + DR[d], nc = c + DC[d];
+      return nr >= 0 && nr < rows && nc >= 0 && nc < cols && inMaze[idx(nr, nc)];
+    });
     const d = dirs[randInt(0, dirs.length - 1)];
-    const nr = cr + DR[d], nc = cc + DC[d];
-    grid[idx(cr, cc)] |= d;
+    const nr = r + DR[d], nc = c + DC[d];
+    grid[idx(r, c)] |= d;
     grid[idx(nr, nc)] |= OPP[d];
-    visited[idx(nr, nc)] = true;
-    stack.push([nr, nc]);
+    inMaze[idx(r, c)] = true;
+    addFrontier(r, c);
+  }
+  braidMaze(BRAID[currentLevel] || 0.2);
+}
+
+// Расшиваем тупики: у клетки с одним выходом с вероятностью p пробиваем ещё
+// один проход к соседней клетке — получается петля (альтернативный путь).
+function braidMaze(p) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = idx(r, c);
+      let cnt = 0;
+      [N, E, S, W].forEach(function (d) { if (grid[cell] & d) cnt++; });
+      if (cnt === 1 && Math.random() < p) {
+        const cand = [N, E, S, W].filter(function (d) {
+          if (grid[cell] & d) return false;                 // не туда, где уже открыто
+          const nr = r + DR[d], nc = c + DC[d];
+          return nr >= 0 && nr < rows && nc >= 0 && nc < cols;
+        });
+        if (cand.length) {
+          const d = cand[randInt(0, cand.length - 1)];
+          const nr = r + DR[d], nc = c + DC[d];
+          grid[cell] |= d;
+          grid[idx(nr, nc)] |= OPP[d];
+        }
+      }
+    }
   }
 }
 
-// Кратчайший путь от старта (0,0) до сыра (rows-1,cols-1) — поиск в ширину.
-function shortestPath() {
+// Расстояния (в шагах) от клетки start до всех остальных — поиск в ширину.
+function bfsFrom(start) {
   const dist = new Array(cols * rows).fill(-1);
-  dist[0] = 0;
-  const queue = [[0, 0]];
+  dist[start] = 0;
+  const queue = [[Math.floor(start / cols), start % cols]];
   let head = 0;
   while (head < queue.length) {
     const [r, c] = queue[head++];
@@ -268,7 +316,7 @@ function shortestPath() {
       }
     });
   }
-  return dist[idx(rows - 1, cols - 1)];
+  return dist;
 }
 
 /* ---------- Рисование ---------- */
@@ -322,27 +370,36 @@ function drawMaze() {
   ctx.font = (s * 0.7) + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('🧀', (cols - 0.5) * s, (rows - 0.5) * s);   // сыр в дальнем углу
+  ctx.fillText('🧀', (gc + 0.5) * s, (gr + 0.5) * s);       // сыр на конце самого длинного маршрута
   ctx.fillText('🐭', (pc + 0.5) * s, (pr + 0.5) * s);       // мышка
 }
 
 /* ---------- Логика ---------- */
 function newMaze() {
   genMaze();
-  pr = 0; pc = 0;
+  // Мышь и сыр — на двух концах самого длинного маршрута (диаметр лабиринта).
+  // Двойной BFS: из любой клетки → самая дальняя A; из A → самая дальняя B.
+  const dA = bfsFrom(0);
+  var startCell = 0;
+  for (var ia = 1; ia < dA.length; ia++) { if (dA[ia] > dA[startCell]) startCell = ia; }
+  const dB = bfsFrom(startCell);
+  var goalCell = startCell;
+  for (var ib = 0; ib < dB.length; ib++) { if (dB[ib] > dB[goalCell]) goalCell = ib; }
+  pr = Math.floor(startCell / cols); pc = startCell % cols;   // старт мыши
+  gr = Math.floor(goalCell / cols);  gc = goalCell % cols;    // сыр
+  optimal = dB[goalCell];
   moves = 0;
-  optimal = shortestPath();
   solvedLock = false;
   // расставляем звёздочки-собиралки (не на старте и не на сыре)
   coins = new Set();
-  var goalCell = idx(rows - 1, cols - 1), guard = 0;
+  var guard = 0;
   while (coins.size < coinsPerMaze && guard++ < 500) {
-    var ci = randInt(1, cols * rows - 1);    // не старт (клетка 0)
-    if (ci !== goalCell) coins.add(ci);
+    var ci = randInt(0, cols * rows - 1);
+    if (ci !== startCell && ci !== goalCell) coins.add(ci);
   }
   coinsGot = 0; totalCoinsAll += coins.size;
   visited = new Array(cols * rows).fill(false);
-  visited[idx(0, 0)] = true;
+  visited[startCell] = true;
   updateProgress();
   feedbackEl.textContent = '';
   feedbackEl.className = 'feedback';
@@ -360,7 +417,7 @@ function tryMove(d) {
     visited[cell] = true;
     if (coins.has(cell)) { coins.delete(cell); coinsGot++; totalCoinsGot++; playCoin(); updateProgress(); }
     drawMaze();
-    if (pr === rows - 1 && pc === cols - 1) onSolve();
+    if (pr === gr && pc === gc) onSolve();
   }
 }
 
