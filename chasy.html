@@ -446,6 +446,7 @@ function showEnd() {
   scoreLineEl.textContent = 'Уровень «' + LEVEL_NAMES[currentLevel] + '». С первой попытки: ' + firstTryCount + ' из ' + total;
   playGood();
   if (window.fireConfetti) fireConfetti();
+  if (window.awardStars) awardStars('chasy', stars.length);
 }
 
 /* ---------- Звук: один переиспользуемый AudioContext (правило iOS) ---------- */
@@ -528,6 +529,11 @@ document.getElementById('changeLevelBtn').addEventListener('click', showStart);
       if(parts.length) raf=requestAnimationFrame(step); else { cx.clearRect(0,0,cv.width,cv.height); raf=null; }
     }
   })();
+  window.awardStars=function(game,n){try{
+    localStorage.setItem('omma_stars_total',(parseInt(localStorage.getItem('omma_stars_total')||'0',10)||0)+n);
+    var bk='omma_best_'+game, b=parseInt(localStorage.getItem(bk)||'0',10)||0; if(n>b) localStorage.setItem(bk,n);
+    localStorage.setItem('omma_plays_total',(parseInt(localStorage.getItem('omma_plays_total')||'0',10)||0)+1);
+  }catch(e){}};
   </script>
 </body>
 </html>

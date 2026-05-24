@@ -396,7 +396,10 @@
       }
       showFeedback(praise[randInt(0, praise.length - 1)], "ok");
       playHappy();
-      if (streak % 5 === 0 && window.fireConfetti) fireConfetti();   // салют на каждой 5-й подряд
+      if (streak % 5 === 0) {                       // каждая 5-я подряд — праздник
+        if (window.fireConfetti) fireConfetti();
+        if (window.awardStars) awardStars("matematika", 1);
+      }
       cardEl.classList.remove("pop");
       void cardEl.offsetWidth;        // перезапуск анимации
       cardEl.classList.add("pop");
@@ -550,6 +553,12 @@
       if(parts.length) raf=requestAnimationFrame(step); else { cx.clearRect(0,0,cv.width,cv.height); raf=null; }
     }
   })();
+  // Общая копилка звёзд (один счётчик на все игры сайта).
+  window.awardStars=function(game,n){try{
+    localStorage.setItem('omma_stars_total',(parseInt(localStorage.getItem('omma_stars_total')||'0',10)||0)+n);
+    var bk='omma_best_'+game, b=parseInt(localStorage.getItem(bk)||'0',10)||0; if(n>b) localStorage.setItem(bk,n);
+    localStorage.setItem('omma_plays_total',(parseInt(localStorage.getItem('omma_plays_total')||'0',10)||0)+1);
+  }catch(e){}};
   </script>
 </body>
 </html>
