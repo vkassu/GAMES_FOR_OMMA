@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
-  Игра «Поймай мышку» — развивающая цель: ПРОСТРАНСТВЕННОЕ МЫШЛЕНИЕ, планирование пути.
+  Игра «Помоги зайке найти морковку» — развивающая цель: ПРОСТРАНСТВЕННОЕ МЫШЛЕНИЕ, планирование пути.
   Лабиринт генерируется на Canvas (рандомизированный алгоритм Прима + braiding).
-  Кошка 🐱 ловит мышку 🐭. Управление: стрелки/WASD, свайпы по полю и
+  Зайка 🐰 ищет морковку 🥕. Управление: стрелки/WASD, свайпы по полю и
   экранный крестик (для телефона). За игру — 5 лабиринтов; звёзды зависят от
   того, насколько близко к кратчайшему пути (считается через поиск в ширину).
   Три уровня — размер лабиринта (7×7, 10×10, 14×14).
@@ -16,9 +16,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Поймай мышку">
+<meta name="apple-mobile-web-app-title" content="Помоги зайке найти морковку">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Поймай мышку</title>
+<title>Помоги зайке найти морковку</title>
 <style>
   :root {
     --bg1: #e0e7ff;
@@ -121,8 +121,8 @@
   <!-- Экран старта: выбор уровня -->
   <div id="startScreen" class="screen">
     <div class="final-emoji">🌀</div>
-    <h1>Поймай мышку</h1>
-    <p class="lead">Помоги кошке 🐱 поймать мышку 🐭!</p>
+    <h1>Помоги зайке найти морковку</h1>
+    <p class="lead">Помоги зайке 🐰 найти морковку 🥕!</p>
     <div class="levels">
       <button class="btn level-btn" data-level="1">🙂 Маленький</button>
       <button class="btn level-btn" data-level="2">😎 Средний</button>
@@ -133,7 +133,7 @@
   <!-- Игровой экран -->
   <div id="gameScreen" class="screen hidden">
     <div class="progress" id="progress">Лабиринт 1 из 5</div>
-    <div class="hint">Веди кошку 🐱 к мышке 🐭 — стрелками, свайпом или кнопками внизу</div>
+    <div class="hint">Веди зайку 🐰 к морковке 🥕 — стрелками, свайпом или кнопками внизу</div>
     <div class="maze-wrap"><canvas id="maze" width="330" height="330"></canvas></div>
     <div class="dpad">
       <button class="dbtn up"    data-dir="1" aria-label="Вверх">▲</button>
@@ -149,7 +149,7 @@
     <div class="final-emoji">🌟</div>
     <h1 id="endTitle">Молодец!</h1>
     <div class="stars" id="stars"></div>
-    <p class="lead" id="endSummary">Все мышки пойманы!</p>
+    <p class="lead" id="endSummary">Все морковки найдены!</p>
     <p class="score-line" id="scoreLine"></p>
     <div class="final-buttons">
       <button class="btn" id="againBtn">Играть ещё раз 🔁</button>
@@ -210,8 +210,8 @@ const canvas      = document.getElementById('maze');
 let currentLevel = 1;
 let cols = 7, rows = 7;
 let grid = [];          // open-маска по клеткам
-let pr = 0, pc = 0;     // позиция кошки-игрока (row, col)
-let gr = 0, gc = 0;     // позиция мышки-цели (конец самого длинного маршрута от старта)
+let pr = 0, pc = 0;     // позиция зайки-игрока (row, col)
+let gr = 0, gc = 0;     // позиция морковки-цели (конец самого длинного маршрута от старта)
 let moves = 0;
 let optimal = 0;
 let mazeIndex = 0;      // какой лабиринт по счёту (0-based)
@@ -233,10 +233,10 @@ function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) 
 function idx(r, c) { return r * cols + c; }
 
 /* ---------- Генерация лабиринта (рандомизированный Прим + braiding) ----------
-   Прим даёт «ветвистый» лабиринт с частыми развилками — на пути к мышке много
+   Прим даёт «ветвистый» лабиринт с частыми развилками — на пути к морковке много
    точек выбора (в отличие от DFS, который рисует один длинный коридор и прячет
    половину карты в хвосте у финиша). Затем braiding расшивает часть тупиков,
-   пробивая лишние проходы: появляются петли и НЕСКОЛЬКО маршрутов к мышке. */
+   пробивая лишние проходы: появляются петли и НЕСКОЛЬКО маршрутов к морковке. */
 function genMaze() {
   grid = new Array(cols * rows).fill(0);
   const inMaze = new Array(cols * rows).fill(false);
@@ -370,14 +370,14 @@ function drawMaze() {
   ctx.font = (s * 0.7) + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('🐭', (gc + 0.5) * s, (gr + 0.5) * s);       // мышка на конце самого длинного маршрута
-  ctx.fillText('🐱', (pc + 0.5) * s, (pr + 0.5) * s);       // кошка-игрок
+  ctx.fillText('🥕', (gc + 0.5) * s, (gr + 0.5) * s);       // морковка на конце самого длинного маршрута
+  ctx.fillText('🐰', (pc + 0.5) * s, (pr + 0.5) * s);       // зайка-игрок
 }
 
 /* ---------- Логика ---------- */
 function newMaze() {
   genMaze();
-  // Кошка и мышка — на двух концах самого длинного маршрута (диаметр лабиринта).
+  // Зайка и морковка — на двух концах самого длинного маршрута (диаметр лабиринта).
   // Двойной BFS: из любой клетки → самая дальняя A; из A → самая дальняя B.
   const dA = bfsFrom(0);
   var startCell = 0;
@@ -386,11 +386,11 @@ function newMaze() {
   var goalCell = startCell;
   for (var ib = 0; ib < dB.length; ib++) { if (dB[ib] > dB[goalCell]) goalCell = ib; }
   pr = Math.floor(startCell / cols); pc = startCell % cols;   // старт мыши
-  gr = Math.floor(goalCell / cols);  gc = goalCell % cols;    // мышка
+  gr = Math.floor(goalCell / cols);  gc = goalCell % cols;    // морковка
   optimal = dB[goalCell];
   moves = 0;
   solvedLock = false;
-  // расставляем звёздочки-собиралки (не на старте-кошке и не на мышке)
+  // расставляем звёздочки-собиралки (не на старте-зайке и не на морковке)
   coins = new Set();
   var guard = 0;
   while (coins.size < coinsPerMaze && guard++ < 500) {
@@ -426,7 +426,7 @@ function onSolve() {
   totalMoves += moves;
   totalOptimal += optimal;
   playGood();
-  feedbackEl.textContent = 'Мышка поймана! 🎉';
+  feedbackEl.textContent = 'Морковка найдена! 🎉';
   feedbackEl.className = 'feedback good';
   setTimeout(() => {
     mazeIndex++;
@@ -473,7 +473,7 @@ function showEnd() {
     summary = 'Хорошо прошёл! В следующий раз попробуй найти путь покороче.';
   } else {
     stars = '⭐'; title = 'Молодец!';
-    summary = 'Все мышки пойманы! Чем больше играешь — тем быстрее находишь путь!';
+    summary = 'Все морковки найдены! Чем больше играешь — тем быстрее находишь путь!';
   }
   var nm = ''; try { nm = localStorage.getItem('omma_name') || ''; } catch (e) {}
   endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
