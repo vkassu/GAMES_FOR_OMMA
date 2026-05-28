@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<!--
+  Игра «Увернись от кирпичей» — развивающая цель: РЕАКЦИЯ, ВНИМАНИЕ, координация.
+  Сверху падают кирпичи 🧱, герой внизу уворачивается, двигаясь влево-вправо.
+  Управление: стрелки/A-D (и Ф-В), перетаскивание пальцем по полю, экранные
+  кнопки ◀ ▶. 3 жизни-сердечка (мягкий проигрыш, без резких звуков). 3 уровня
+  скорости. Герой — тот, что выбран в лаунчере (omma_hero).
+  Навигация и плюшки как в других играх: верхний бар, конфетти, копилка звёзд,
+  имя в похвале, общие темы оформления.
+  Чистый HTML/CSS/JS, один файл, офлайн, работает по file:// и на iOS.
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Увернись от кирпичей">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Увернись от кирпичей</title>
+<style>
+  :root {
+    --bg1: #ffedd5;
+    --bg2: #dbeafe;
+    --card: #ffffff;
+    --text: #1f2937;
+    --accent: #ea580c;
+    --good: #22c55e;
+    --good-bg: #dcfce7;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(10px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  .screen { width: 100%; max-width: 460px; text-align: center; }
+  .hidden { display: none; }
+
+  h1 { font-size: clamp(24px, 5.6vw, 38px); margin: 0 0 10px; }
+  .lead { color: #4b5563; font-size: clamp(15px, 3.6vw, 20px); margin: 0 0 22px; }
+
+  .btn {
+    display: inline-block; border: none; border-radius: 18px;
+    padding: 16px 30px; font-size: clamp(17px, 4vw, 23px);
+    font-weight: 700; font-family: inherit; color: #fff; background: var(--accent);
+    cursor: pointer; box-shadow: 0 8px 20px rgba(234,88,12,0.30);
+    touch-action: manipulation; text-decoration: none;
+  }
+  .btn.secondary { background: #fff; color: var(--accent); box-shadow: 0 6px 16px rgba(234,88,12,0.16); }
+  @media (hover: hover) { .btn:hover { filter: brightness(1.05); } }
+  .btn:active { transform: scale(0.97); }
+
+  .topbar { width: 100%; max-width: 460px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .navbtn { font-family: inherit; font-weight: 700; font-size: clamp(13px, 3.2vw, 16px); border: none; background: #fff; color: var(--accent); border-radius: 999px; padding: 9px 14px; cursor: pointer; text-decoration: none; box-shadow: 0 4px 12px rgba(234,88,12,0.14); touch-action: manipulation; white-space: nowrap; }
+  .navbtn:active { transform: scale(0.96); }
+  .navright { display: flex; gap: 8px; }
+  .navright.hidden { display: none; }
+
+  .levels { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .lvl-btn { width: 300px; max-width: 100%; }
+
+  .progress { font-size: clamp(16px, 3.8vw, 21px); color: #6b7280; font-weight: 800; margin-bottom: 10px; min-height: 26px; }
+
+  /* игровое поле */
+  .stage { position: relative; width: 100%; max-width: 380px; margin: 0 auto; }
+  #game { display: block; width: 100%; height: auto; border-radius: 20px;
+    box-shadow: 0 12px 30px rgba(234,88,12,0.18); background: #cfeafe; touch-action: none; }
+
+  .controls { display: flex; gap: 16px; justify-content: center; margin-top: 16px; }
+  .ctrl { font-size: 34px; line-height: 1; border: none; background: #fff; color: var(--accent);
+    border-radius: 20px; width: 96px; height: 64px; cursor: pointer;
+    box-shadow: 0 6px 16px rgba(234,88,12,0.18); touch-action: manipulation; }
+  .ctrl:active { transform: scale(0.94); background: #fff7ed; }
+
+  .hint { font-size: clamp(13px, 3.2vw, 16px); color: #6b7280; margin-top: 12px; }
+
+  .final-emoji { font-size: 66px; margin-bottom: 6px; }
+  .stars { font-size: clamp(40px, 11vw, 64px); letter-spacing: 6px; margin: 8px 0 4px; animation: pop 0.5s ease; }
+  @keyframes pop { 0%{transform:scale(1);} 45%{transform:scale(1.10);} 100%{transform:scale(1);} }
+  .score-line { font-size: clamp(17px, 3.8vw, 22px); color: #4b5563; font-weight: 700; margin: 8px 0 26px; }
+  .final-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  .switcher { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+  .switcher-label { font-size: clamp(15px,3.4vw,18px); font-weight: 700; color: #6b7280; }
+  .game-pill { font-size: 30px; text-decoration: none; line-height: 1; background: #fff; border-radius: 16px; padding: 8px 12px; box-shadow: 0 6px 16px rgba(234,88,12,0.14); touch-action: manipulation; }
+  .game-pill:active { transform: scale(0.94); }
+
+  .overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .overlay.hidden { display: none; }
+  .confirm-box { background: #fff; border-radius: 24px; padding: 26px 24px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .confirm-box p { font-size: clamp(18px,4.4vw,22px); font-weight: 700; margin: 0 0 20px; }
+  .confirm-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .cbtn { font-family: inherit; font-weight: 700; font-size: clamp(16px,4vw,20px); border: none; border-radius: 14px; padding: 14px 26px; cursor: pointer; touch-action: manipulation; }
+  .cbtn-yes { background: var(--accent); color: #fff; }
+  .cbtn-no  { background: #eee; color: #1f2937; }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <a class="navbtn" id="homeBtn" href="index.html">🏠 К играм</a>
+    <div class="navright hidden" id="navRight">
+      <button class="navbtn" id="levelBtn">🎚️ Уровень</button>
+      <button class="navbtn" id="restartBtn">🔄 Заново</button>
+    </div>
+  </header>
+
+  <!-- Старт: выбор уровня -->
+  <div id="startScreen" class="screen">
+    <div class="final-emoji">🧱</div>
+    <h1>Увернись от кирпичей</h1>
+    <p class="lead">Сверху падают кирпичи. Двигай героя влево-вправо и уворачивайся!</p>
+    <div class="levels" id="levels">
+      <button class="btn lvl-btn" data-level="1">🐢 Лёгкий</button>
+      <button class="btn lvl-btn" data-level="2">🙂 Средний</button>
+      <button class="btn lvl-btn" data-level="3">⚡ Быстрый</button>
+    </div>
+    <div class="hint">Управляй: пальцем по полю, кнопками ◀ ▶ или стрелками на клавиатуре</div>
+  </div>
+
+  <!-- Игра -->
+  <div id="gameScreen" class="screen hidden">
+    <div class="progress" id="progress">❤️❤️❤️ · Уворотов: 0</div>
+    <div class="stage">
+      <canvas id="game"></canvas>
+    </div>
+    <div class="controls">
+      <button class="ctrl" id="leftBtn" aria-label="влево">◀</button>
+      <button class="ctrl" id="rightBtn" aria-label="вправо">▶</button>
+    </div>
+  </div>
+
+  <!-- Финал -->
+  <div id="endScreen" class="screen hidden">
+    <div class="final-emoji">🏆</div>
+    <h1 id="endTitle">Молодец!</h1>
+    <div class="stars" id="stars"></div>
+    <p class="lead" id="endSummary"></p>
+    <p class="score-line" id="scoreLine"></p>
+    <div class="final-buttons">
+      <button class="btn" id="againBtn">Ещё раз 🔁</button>
+      <button class="btn secondary" id="changeLevelBtn">Другой уровень</button>
+    </div>
+    <div class="switcher">
+      <span class="switcher-label">Другая игра:</span>
+      <a class="game-pill" href="matematika.html" title="Математика">🧮</a>
+      <a class="game-pill" href="pamyat.html" title="Память">🧠</a>
+      <a class="game-pill" href="naydi-lishnee.html" title="Найди лишнее">🔍</a>
+      <a class="game-pill" href="zagadki.html" title="Загадки">🤔</a>
+      <a class="game-pill" href="chasy.html" title="Который час?">🕐</a>
+      <a class="game-pill" href="magazin.html" title="Магазин и сдача">🛒</a>
+      <a class="game-pill" href="labirint.html" title="Помоги зайке найти морковку">🌀</a>
+      <a class="game-pill" href="tatar.html" title="Татарские слова">🗣️</a>
+      <a class="game-pill" href="english.html" title="Английские слова">🔤</a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="confirmOverlay">
+    <div class="confirm-box">
+      <p id="confirmText">Выйти? Прогресс не сохранится.</p>
+      <div class="confirm-actions">
+        <button class="cbtn cbtn-yes" id="cfYes">Да</button>
+        <button class="cbtn cbtn-no" id="cfNo">Остаться</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+const startScreen = document.getElementById('startScreen');
+const gameScreen  = document.getElementById('gameScreen');
+const endScreen   = document.getElementById('endScreen');
+const progressEl  = document.getElementById('progress');
+const scoreLineEl = document.getElementById('scoreLine');
+const starsEl     = document.getElementById('stars');
+const endTitleEl  = document.getElementById('endTitle');
+const endSummaryEl= document.getElementById('endSummary');
+const navRight    = document.getElementById('navRight');
+const canvas      = document.getElementById('game');
+const ctx         = canvas.getContext('2d');
+
+// Логический размер поля (CSS масштабирует под ширину экрана).
+const W = 360, H = 470;
+(function setupCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+})();
+
+// Параметры сложности по уровням.
+const LEVELS = {
+  1: { name: 'Лёгкий',  fall: 95,  rampFall: 3.0, spawn: 1.15, rampSpawn: 0.006, minSpawn: 0.55 },
+  2: { name: 'Средний', fall: 135, rampFall: 4.0, spawn: 0.90, rampSpawn: 0.007, minSpawn: 0.45 },
+  3: { name: 'Быстрый', fall: 180, rampFall: 5.0, spawn: 0.70, rampSpawn: 0.008, minSpawn: 0.38 }
+};
+
+let hero = '🦄';
+try { hero = localStorage.getItem('omma_hero') || '🦄'; } catch (e) {}
+
+let state = 'start';           // 'start' | 'play' | 'end'
+let level = 1, L = LEVELS[1];
+let bricks = [];
+const PW = 30, PH = 28;        // хитбокс героя
+const BS = 34;                 // размер кирпича
+let playerX = W / 2;
+const playerY = H - 30;
+let leftOn = false, rightOn = false, moveDir = 0, dragging = false;
+const PLAYER_SPEED = 380;      // px/сек для клавиш/кнопок
+let lives = 3, dodges = 0, elapsed = 0;
+let spawnTimer = 0, invuln = 0;
+let running = false, paused = false, lastTs = 0, raf = null;
+
+function randRange(a, b) { return a + Math.random() * (b - a); }
+function recompDir() { moveDir = (rightOn ? 1 : 0) - (leftOn ? 1 : 0); }
+
+function updateHud() {
+  let h = '';
+  for (let i = 0; i < lives; i++) h += '❤️';
+  progressEl.textContent = (h || '💔') + ' · Уворотов: ' + dodges;
+}
+
+function startGame(lv) {
+  ensureAudio();
+  level = lv; L = LEVELS[lv];
+  bricks = [];
+  playerX = W / 2;
+  leftOn = rightOn = false; moveDir = 0; dragging = false;
+  lives = 3; dodges = 0; elapsed = 0;
+  spawnTimer = 0.8; invuln = 0;
+  paused = false;
+  state = 'play';
+  startScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  gameScreen.classList.remove('hidden');
+  navRight.classList.remove('hidden');
+  updateHud();
+  if (raf) cancelAnimationFrame(raf);
+  running = true; lastTs = 0;
+  raf = requestAnimationFrame(loop);
+}
+
+function spawnBrick() {
+  const x = randRange(BS / 2 + 4, W - BS / 2 - 4);
+  bricks.push({ x: x, y: -BS, rot: randRange(-0.3, 0.3), vr: randRange(-1.2, 1.2) });
+}
+
+function loop(ts) {
+  if (!running) return;
+  if (!lastTs) lastTs = ts;
+  let dt = (ts - lastTs) / 1000;
+  lastTs = ts;
+  if (dt > 0.05) dt = 0.05;       // защита от рывков
+  if (!paused) update(dt);
+  draw();
+  raf = requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  elapsed += dt;
+  // движение героя
+  if (!dragging) playerX += moveDir * PLAYER_SPEED * dt;
+  const half = PW / 2;
+  if (playerX < half) playerX = half;
+  if (playerX > W - half) playerX = W - half;
+
+  // сложность растёт со временем
+  const fallSpeed = L.fall + elapsed * L.rampFall;
+  const spawnEvery = Math.max(L.minSpawn, L.spawn - elapsed * L.rampSpawn);
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) { spawnBrick(); spawnTimer += spawnEvery; }
+
+  if (invuln > 0) invuln -= dt;
+
+  // двигаем кирпичи, ловим события
+  for (let i = bricks.length - 1; i >= 0; i--) {
+    const b = bricks[i];
+    b.y += fallSpeed * dt;
+    b.rot += b.vr * dt;
+    if (b.y - BS / 2 > H) {                 // улетел вниз — увернулись
+      bricks.splice(i, 1);
+      dodges++;
+      updateHud();
+      if (dodges % 5 === 0) playTick();
+      continue;
+    }
+    if (invuln <= 0) {                       // проверка столкновения
+      const dx = Math.abs(playerX - b.x), dy = Math.abs(playerY - b.y);
+      if (dx < (PW + BS) / 2 - 8 && dy < (PH + BS) / 2 - 8) {
+        bricks.splice(i, 1);
+        hit();
+        if (lives <= 0) { endGame(); return; }
+      }
+    }
+  }
+}
+
+function hit() {
+  lives--;
+  invuln = 1.2;
+  playRetry();
+  updateHud();
+}
+
+function draw() {
+  // небо
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#bae6fd');
+  g.addColorStop(1, '#e0f2fe');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  // земля
+  ctx.fillStyle = '#bbf7d0';
+  ctx.fillRect(0, H - 14, W, 14);
+
+  // кирпичи
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = BS + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  for (let i = 0; i < bricks.length; i++) {
+    const b = bricks[i];
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.rot);
+    ctx.fillText('🧱', 0, 0);
+    ctx.restore();
+  }
+
+  // герой (мигает во время неуязвимости)
+  const blink = invuln > 0 && (Math.floor(elapsed * 12) % 2 === 0);
+  if (!blink) {
+    ctx.font = '40px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+    ctx.fillText(hero, playerX, playerY);
+  }
+}
+
+function endGame() {
+  running = false;
+  if (raf) cancelAnimationFrame(raf);
+  state = 'end';
+  gameScreen.classList.add('hidden');
+  navRight.classList.add('hidden');
+  endScreen.classList.remove('hidden');
+
+  let stars, title, summary;
+  if (dodges >= 25) {
+    stars = '⭐⭐⭐'; title = 'Супер!';
+    summary = 'Вот это ловкость — увернулся ' + dodges + ' раз!';
+  } else if (dodges >= 12) {
+    stars = '⭐⭐'; title = 'Здорово!';
+    summary = 'Хороший результат: ' + dodges + ' уворотов!';
+  } else {
+    stars = '⭐'; title = 'Молодец!';
+    summary = 'Увернулся ' + dodges + ' раз. Попробуй ещё — получится больше!';
+  }
+  var nm = ''; try { nm = localStorage.getItem('omma_name') || ''; } catch (e) {}
+  endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
+  starsEl.textContent = stars;
+  endSummaryEl.textContent = summary;
+  scoreLineEl.textContent = 'Уровень «' + L.name + '». Уворотов: ' + dodges;
+  playGood();
+  if (window.fireConfetti) fireConfetti();
+  if (window.awardStars) awardStars('kirpichi', stars.length);
+}
+
+function showStart() {
+  running = false;
+  if (raf) cancelAnimationFrame(raf);
+  state = 'start';
+  gameScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');
+}
+
+/* ---------- Управление ---------- */
+function setPlayerFromClient(clientX) {
+  const rect = canvas.getBoundingClientRect();
+  const scale = W / rect.width;
+  let x = (clientX - rect.left) * scale;
+  const half = PW / 2;
+  if (x < half) x = half;
+  if (x > W - half) x = W - half;
+  playerX = x;
+}
+
+// касания по полю
+canvas.addEventListener('touchstart', function (e) {
+  if (state !== 'play') return;
+  ensureAudio();
+  dragging = true;
+  setPlayerFromClient(e.touches[0].clientX);
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove', function (e) {
+  if (!dragging) return;
+  setPlayerFromClient(e.touches[0].clientX);
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', function () { dragging = false; });
+canvas.addEventListener('touchcancel', function () { dragging = false; });
+// мышь (для компьютера)
+canvas.addEventListener('mousedown', function (e) { if (state !== 'play') return; dragging = true; setPlayerFromClient(e.clientX); });
+window.addEventListener('mousemove', function (e) { if (dragging) setPlayerFromClient(e.clientX); });
+window.addEventListener('mouseup', function () { dragging = false; });
+
+// экранные кнопки
+function holdBtn(btn, setter) {
+  const on  = function (e) { setter(true);  recompDir(); if (e.cancelable) e.preventDefault(); };
+  const off = function () { setter(false); recompDir(); };
+  btn.addEventListener('touchstart', on, { passive: false });
+  btn.addEventListener('touchend', off);
+  btn.addEventListener('touchcancel', off);
+  btn.addEventListener('mousedown', on);
+  btn.addEventListener('mouseup', off);
+  btn.addEventListener('mouseleave', off);
+}
+holdBtn(document.getElementById('leftBtn'),  function (v) { leftOn = v; });
+holdBtn(document.getElementById('rightBtn'), function (v) { rightOn = v; });
+
+// клавиатура (e.code работает при любой раскладке: KeyA/KeyD = Ф/В)
+window.addEventListener('keydown', function (e) {
+  if (state !== 'play') return;
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') { leftOn = true; recompDir(); e.preventDefault(); }
+  else if (e.code === 'ArrowRight' || e.code === 'KeyD') { rightOn = true; recompDir(); e.preventDefault(); }
+});
+window.addEventListener('keyup', function (e) {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') { leftOn = false; recompDir(); }
+  else if (e.code === 'ArrowRight' || e.code === 'KeyD') { rightOn = false; recompDir(); }
+});
+
+/* ---------- Звук ---------- */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freqs, dur, type) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  freqs.forEach(function (f, i) {
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = type || 'sine'; o.frequency.value = f;
+    const t0 = now + i * 0.12;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  });
+}
+const playGood  = function () { tone([523.25, 659.25, 783.99], 0.22); };
+const playRetry = function () { tone([300, 200], 0.18, 'triangle'); };
+const playTick  = function () { tone([880], 0.07, 'sine'); };
+
+/* ---------- Навигация и подтверждение ---------- */
+const confirmOverlay = document.getElementById('confirmOverlay');
+const confirmTextEl  = document.getElementById('confirmText');
+let pendingYes = null;
+function askConfirm(msg, onYes) {
+  confirmTextEl.textContent = msg; pendingYes = onYes;
+  confirmOverlay.classList.remove('hidden');
+  if (state === 'play') paused = true;
+}
+document.getElementById('cfYes').addEventListener('click', function () {
+  confirmOverlay.classList.add('hidden'); const fn = pendingYes; pendingYes = null; if (fn) fn();
+});
+document.getElementById('cfNo').addEventListener('click', function () {
+  confirmOverlay.classList.add('hidden'); pendingYes = null;
+  if (state === 'play') { paused = false; lastTs = 0; }
+});
+
+function midGame() { return state === 'play'; }
+
+document.querySelectorAll('.lvl-btn').forEach(function (b) {
+  b.addEventListener('click', function () { ensureAudio(); startGame(parseInt(b.getAttribute('data-level'), 10)); });
+});
+document.getElementById('homeBtn').addEventListener('click', function (e) {
+  if (midGame()) { e.preventDefault(); askConfirm('Выйти в меню? Эта игра не сохранится.', function () { window.location.href = 'index.html'; }); }
+});
+document.getElementById('levelBtn').addEventListener('click', function () {
+  if (midGame()) askConfirm('Выбрать другой уровень? Эта игра не сохранится.', showStart); else showStart();
+});
+document.getElementById('restartBtn').addEventListener('click', function () {
+  if (midGame()) askConfirm('Начать заново? Эта игра не сохранится.', function () { startGame(level); }); else startGame(level);
+});
+document.getElementById('againBtn').addEventListener('click', function () { startGame(level); });
+document.getElementById('changeLevelBtn').addEventListener('click', showStart);
+</script>
+
+  <canvas id="confetti" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;"></canvas>
+  <script>
+  (function(){
+    var cv=document.getElementById('confetti'), cx=cv.getContext('2d'), parts=[], raf=null;
+    function resize(){ cv.width=window.innerWidth; cv.height=window.innerHeight; }
+    window.addEventListener('resize',resize); resize();
+    var EMO=['⭐','🌟','💖','💛','✨','🎉','🌸'];
+    window.fireConfetti=function(){
+      resize();
+      for(var i=0;i<40;i++){
+        parts.push({x:cv.width*(0.2+Math.random()*0.6), y:cv.height*0.3+(Math.random()-0.5)*60,
+          vx:(Math.random()-0.5)*9, vy:-7-Math.random()*7, g:0.28+Math.random()*0.15,
+          s:18+Math.random()*16, rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3,
+          e:EMO[Math.floor(Math.random()*EMO.length)], life:0});
+      }
+      if(!raf) raf=requestAnimationFrame(step);
+    };
+    function step(){
+      cx.clearRect(0,0,cv.width,cv.height);
+      for(var i=0;i<parts.length;i++){ var p=parts[i];
+        p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life++;
+        cx.save(); cx.translate(p.x,p.y); cx.rotate(p.rot);
+        cx.font=p.s+'px "Segoe UI Emoji","Apple Color Emoji",system-ui,sans-serif';
+        cx.textAlign='center'; cx.textBaseline='middle';
+        cx.globalAlpha=Math.max(0,1-p.life/130);
+        cx.fillText(p.e,0,0); cx.restore();
+      }
+      parts=parts.filter(function(p){return p.life<130 && p.y<cv.height+50;});
+      if(parts.length) raf=requestAnimationFrame(step); else { cx.clearRect(0,0,cv.width,cv.height); raf=null; }
+    }
+  })();
+  window.awardStars=function(game,n){try{
+    localStorage.setItem('omma_stars_total',(parseInt(localStorage.getItem('omma_stars_total')||'0',10)||0)+n);
+    var bk='omma_best_'+game, b=parseInt(localStorage.getItem(bk)||'0',10)||0; if(n>b) localStorage.setItem(bk,n);
+    localStorage.setItem('omma_plays_total',(parseInt(localStorage.getItem('omma_plays_total')||'0',10)||0)+1);
+  }catch(e){}};
+  </script>
+
+  <script>
+  (function(){
+    var css='html[data-theme="rainbow"] body{background:linear-gradient(135deg,#ffd3e0,#d4f1ff,#fff4c2)!important;}'
+      +'html[data-theme="flower"] body{background:linear-gradient(135deg,#ffe0ef,#f3e8ff)!important;}'
+      +'html[data-theme="space"] body{background:linear-gradient(160deg,#241e4e,#3b2d6b,#15213f)!important;}'
+      +'html[data-theme="space"] h1,html[data-theme="space"] .subtitle,html[data-theme="space"] .lead,html[data-theme="space"] .hello,html[data-theme="space"] .progress,html[data-theme="space"] .hint,html[data-theme="space"] .question,html[data-theme="space"] .score-line,html[data-theme="space"] .switcher-label{color:#eef2ff!important;}';
+    var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+    try{var t=localStorage.getItem('omma_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}
+  })();
+  </script>
+</body>
+</html>
