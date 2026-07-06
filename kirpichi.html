@@ -3,7 +3,8 @@
   Игра «Увернись от кирпичей» — развивающая цель: РЕАКЦИЯ, ВНИМАНИЕ, координация.
   Сверху падают кирпичи 🧱, герой внизу уворачивается, двигаясь влево-вправо.
   Управление: стрелки/A-D (и Ф-В), перетаскивание пальцем по полю, экранные
-  кнопки ◀ ▶. 3 жизни-сердечка (мягкий проигрыш, без резких звуков). 3 уровня
+  кнопки ◀ ▲ ▶; прыжок — ▲, пробел, стрелка вверх или W.
+  3 жизни-сердечка (мягкий проигрыш, без резких звуков). 3 уровня
   скорости. Герой — тот, что выбран в лаунчере (omma_hero).
   Навигация и плюшки как в других играх: верхний бар, конфетти, копилка звёзд,
   имя в похвале, общие темы оформления.
@@ -121,7 +122,7 @@
       <button class="btn lvl-btn" data-level="2">🙂 Средний</button>
       <button class="btn lvl-btn" data-level="3">⚡ Быстрый</button>
     </div>
-    <div class="hint">Управляй: пальцем по полю, кнопками ◀ ▶ или стрелками на клавиатуре</div>
+    <div class="hint">Управляй: пальцем по полю, кнопками ◀ ▲ ▶ или стрелками. Прыжок — ▲ или пробел</div>
   </div>
 
   <!-- Игра -->
@@ -132,6 +133,7 @@
     </div>
     <div class="controls">
       <button class="ctrl" id="leftBtn" aria-label="влево">◀</button>
+      <button class="ctrl" id="jumpBtn" aria-label="прыжок">▲</button>
       <button class="ctrl" id="rightBtn" aria-label="вправо">▶</button>
     </div>
   </div>
@@ -213,6 +215,8 @@ const PW = 30, PH = 28;        // хитбокс героя
 const BS = 34;                 // размер кирпича
 let playerX = W / 2;
 const playerY = H - 30;
+let yOff = 0, vy = 0, onGround = true;   // прыжок: смещение вверх (yOff ≤ 0)
+const GRAV = 1500, JUMP_V = 540;         // высота прыжка ≈ JUMP_V²/(2·GRAV) ≈ 97px
 let leftOn = false, rightOn = false, moveDir = 0, dragging = false;
 const PLAYER_SPEED = 380;      // px/сек для клавиш/кнопок
 let lives = 3, dodges = 0, elapsed = 0;
@@ -233,6 +237,7 @@ function startGame(lv) {
   level = lv; L = LEVELS[lv];
   bricks = [];
   playerX = W / 2;
+  yOff = 0; vy = 0; onGround = true;
   leftOn = rightOn = false; moveDir = 0; dragging = false;
   lives = 3; dodges = 0; elapsed = 0;
   spawnTimer = 0.8; invuln = 0; brickCount = 0; smallCount = 0;
@@ -280,6 +285,13 @@ function update(dt) {
   if (playerX < half) playerX = half;
   if (playerX > W - half) playerX = W - half;
 
+  // прыжок
+  if (!onGround) {
+    vy += GRAV * dt;
+    yOff += vy * dt;
+    if (yOff >= 0) { yOff = 0; vy = 0; onGround = true; }
+  }
+
   // сложность растёт со временем
   const fallSpeed = L.fall + elapsed * L.rampFall;
   const spawnEvery = Math.max(L.minSpawn, L.spawn - elapsed * L.rampSpawn);
@@ -301,7 +313,7 @@ function update(dt) {
       continue;
     }
     if (invuln <= 0) {                       // проверка столкновения
-      const dx = Math.abs(playerX - b.x), dy = Math.abs(playerY - b.y);
+      const dx = Math.abs(playerX - b.x), dy = Math.abs(playerY + yOff - b.y);
       if (dx < (PW + b.s) / 2 - 8 && dy < (PH + b.s) / 2 - 8) {
         bricks.splice(i, 1);
         hit(b.dmg);
@@ -351,7 +363,7 @@ function draw() {
   const blink = invuln > 0 && (Math.floor(elapsed * 12) % 2 === 0);
   if (!blink) {
     ctx.font = '40px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
-    ctx.fillText(hero, playerX, playerY);
+    ctx.fillText(hero, playerX, playerY + yOff);
   }
 }
 
@@ -455,11 +467,22 @@ function holdBtn(btn, setter) {
 holdBtn(document.getElementById('leftBtn'),  function (v) { leftOn = v; });
 holdBtn(document.getElementById('rightBtn'), function (v) { rightOn = v; });
 
+// прыжок
+function jump() {
+  if (state !== 'play' || paused || !onGround) return;
+  onGround = false; vy = -JUMP_V;
+  playJump();
+}
+const jumpBtn = document.getElementById('jumpBtn');
+jumpBtn.addEventListener('touchstart', function (e) { jump(); if (e.cancelable) e.preventDefault(); }, { passive: false });
+jumpBtn.addEventListener('mousedown', function () { jump(); });
+
 // клавиатура (e.code работает при любой раскладке: KeyA/KeyD = Ф/В)
 window.addEventListener('keydown', function (e) {
   if (state !== 'play') return;
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') { leftOn = true; recompDir(); e.preventDefault(); }
   else if (e.code === 'ArrowRight' || e.code === 'KeyD') { rightOn = true; recompDir(); e.preventDefault(); }
+  else if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') { jump(); e.preventDefault(); }
 });
 window.addEventListener('keyup', function (e) {
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') { leftOn = false; recompDir(); }
@@ -489,6 +512,7 @@ function tone(freqs, dur, type) {
 const playGood  = function () { tone([523.25, 659.25, 783.99], 0.22); };
 const playRetry = function () { tone([300, 200], 0.18, 'triangle'); };
 const playTick  = function () { tone([880], 0.07, 'sine'); };
+const playJump  = function () { tone([392, 587.33], 0.09); };
 
 /* ---------- Навигация и подтверждение ---------- */
 const confirmOverlay = document.getElementById('confirmOverlay');
