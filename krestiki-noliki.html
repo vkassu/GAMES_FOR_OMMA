@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   Игра «Крестики-нолики» — развивающая цель: ЛОГИКА, ПЛАНИРОВАНИЕ, стратегия.
-  Классические ❌⭕ 3×3. Три режима:
+  Классические ❌⭕. Два размера доски: 3×3 и 5×5 — победа всегда ТРИ в ряд
+  (по горизонтали, вертикали или диагонали). Три режима:
     • «С другом» — двое игроков по очереди на одном экране.
     • «Против кошки» — лёгкий бот, ходит случайно.
-    • «Против лисы» — хитрый бот: старается выиграть и блокировать,
+    • «Против лисы» — хитрый бот: выигрывает/блокирует + позиционная эвристика,
       но с ~20% шансом делает случайный ход, чтобы ребёнок мог победить.
   Игрок (или Игрок 1) всегда ходит первым за ❌.
   Плюшки как в других играх: верхний бар, конфетти на победе, копилка
@@ -63,6 +64,17 @@
   .navright { display: flex; gap: 8px; }
   .navright.hidden { display: none; }
 
+  .size-picker { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .size-label { font-size: clamp(14px, 3.4vw, 17px); font-weight: 700; color: #6b7280; }
+  .size-btn {
+    font-family: inherit; font-weight: 700; font-size: clamp(15px, 3.6vw, 18px);
+    border: 3px solid #e5e7eb; background: #fff; color: #4b5563;
+    border-radius: 14px; padding: 8px 16px; cursor: pointer;
+    touch-action: manipulation; min-width: 74px;
+  }
+  .size-btn.active { border-color: var(--accent); color: var(--accent); background: #eef2ff; }
+  .size-btn:active { transform: scale(0.96); }
+
   .levels { display: flex; flex-direction: column; gap: 12px; align-items: center; }
   .lvl-btn { width: 300px; max-width: 100%; }
 
@@ -72,8 +84,14 @@
   .turn { font-size: clamp(18px, 4.4vw, 24px); font-weight: 800; margin-bottom: 14px; min-height: 32px; }
 
   .board {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    display: grid; gap: 10px;
     width: min(340px, 90vw); aspect-ratio: 1; margin: 0 auto;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .board[data-n="5"] {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    width: min(400px, 94vw);
   }
   .cell {
     background: #fff; border: none; border-radius: 20px;
@@ -83,6 +101,11 @@
     cursor: pointer; touch-action: manipulation; padding: 0;
     box-shadow: 0 6px 16px rgba(99,102,241,0.14);
     transition: transform 0.1s ease, background 0.25s ease;
+  }
+  .board[data-n="5"] .cell {
+    font-size: clamp(22px, 7vw, 38px);
+    border-radius: 14px;
+    box-shadow: 0 4px 10px rgba(99,102,241,0.12);
   }
   .cell:disabled { cursor: default; }
   .cell.win { background: var(--win); animation: winpulse 0.55s ease; }
@@ -127,34 +150,29 @@
     </div>
   </header>
 
-  <!-- Старт: выбор режима -->
+  <!-- Старт: выбор размера и режима -->
   <div id="startScreen" class="screen">
     <div class="final-emoji">❌ ⭕</div>
     <h1>Крестики-нолики</h1>
     <p class="lead">Собери три в ряд раньше противника</p>
+    <div class="size-picker">
+      <span class="size-label">Доска:</span>
+      <button class="size-btn" data-size="3">3×3</button>
+      <button class="size-btn" data-size="5">5×5</button>
+    </div>
     <div class="levels">
       <button class="btn lvl-btn" data-mode="friend">👫 С другом</button>
       <button class="btn lvl-btn" data-mode="cat">🐱 Против кошки</button>
       <button class="btn lvl-btn" data-mode="fox">🦊 Против лисы</button>
     </div>
-    <div class="hint">Первым ходит ❌</div>
+    <div class="hint">Первым ходит ❌ · на 5×5 тоже нужны ТРИ подряд</div>
   </div>
 
   <!-- Игровой экран -->
   <div id="gameScreen" class="screen hidden">
     <div class="score-strip" id="scoreStrip"></div>
     <div class="turn" id="turnLabel">Твой ход ❌</div>
-    <div class="board" id="board">
-      <button class="cell" data-i="0"></button>
-      <button class="cell" data-i="1"></button>
-      <button class="cell" data-i="2"></button>
-      <button class="cell" data-i="3"></button>
-      <button class="cell" data-i="4"></button>
-      <button class="cell" data-i="5"></button>
-      <button class="cell" data-i="6"></button>
-      <button class="cell" data-i="7"></button>
-      <button class="cell" data-i="8"></button>
-    </div>
+    <div class="board" id="board" data-n="3"></div>
   </div>
 
   <!-- Итог раунда: маленькое окошко после каждой партии -->
@@ -216,7 +234,6 @@ const endScreen   = document.getElementById('endScreen');
 const scoreStripEl = document.getElementById('scoreStrip');
 const turnLabelEl = document.getElementById('turnLabel');
 const boardEl = document.getElementById('board');
-const cellEls = Array.from(document.querySelectorAll('.cell'));
 const navRight = document.getElementById('navRight');
 const scoreLineEl = document.getElementById('scoreLine');
 const starsEl = document.getElementById('stars');
@@ -233,26 +250,80 @@ const MODES = {
   fox:    { name: 'Против лисы',  emoji: '🦊', foeName: 'лиса',   isBot: true,  hard: true  }
 };
 
-// Индексы клеток на доске:
-//  0 | 1 | 2
-//  3 | 4 | 5
-//  6 | 7 | 8
-const WIN_LINES = [
-  [0,1,2],[3,4,5],[6,7,8],  // строки
-  [0,3,6],[1,4,7],[2,5,8],  // столбцы
-  [0,4,8],[2,4,6]           // диагонали
-];
+const K = 3;                                // длина выигрышной линии (всегда 3)
+let N = 3;                                  // размер доски (3 или 5)
+let WIN_LINES = [];                         // все выигрышные линии, считаются по N,K
+let cellEls = [];                           // кнопки-клетки, создаются в buildBoard()
 
 let state = 'start';                        // 'start' | 'play' | 'roundOver' | 'end'
 let mode = 'friend', M = MODES.friend;
-let board = new Array(9).fill(0);           // 0 пусто, 1 = ❌, 2 = ⭕
+let board = [];                             // 0 пусто, 1 = ❌, 2 = ⭕
 let currentPlayer = 1;                      // всегда стартует ❌
 let session = { wins: 0, losses: 0, draws: 0, games: 0, p1: 0, p2: 0 };
 let roundTimer = null;
 
+// Выбор размера доски. Сохраняем в localStorage, чтобы не каждый раз кликать.
+let selectedSize = 3;
+try {
+  const s = parseInt(localStorage.getItem('krestiki_size') || '3', 10);
+  selectedSize = (s === 5) ? 5 : 3;
+} catch (e) {}
+
 function symbolFor(p) { return p === 1 ? '❌' : '⭕'; }
 function getName() { try { return localStorage.getItem('omma_name') || ''; } catch (e) { return ''; } }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+// Считает все линии длиной k на доске n×n (строки, столбцы, обе диагонали).
+function computeWinLines(n, k) {
+  const lines = [];
+  // строки
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c <= n - k; c++) {
+      const line = [];
+      for (let i = 0; i < k; i++) line.push(r * n + c + i);
+      lines.push(line);
+    }
+  // столбцы
+  for (let c = 0; c < n; c++)
+    for (let r = 0; r <= n - k; r++) {
+      const line = [];
+      for (let i = 0; i < k; i++) line.push((r + i) * n + c);
+      lines.push(line);
+    }
+  // диагональ ↘
+  for (let r = 0; r <= n - k; r++)
+    for (let c = 0; c <= n - k; c++) {
+      const line = [];
+      for (let i = 0; i < k; i++) line.push((r + i) * n + c + i);
+      lines.push(line);
+    }
+  // диагональ ↙
+  for (let r = 0; r <= n - k; r++)
+    for (let c = k - 1; c < n; c++) {
+      const line = [];
+      for (let i = 0; i < k; i++) line.push((r + i) * n + c - i);
+      lines.push(line);
+    }
+  return lines;
+}
+
+// Пересоздаёт клетки под текущий N (вызывается при старте сессии).
+function buildBoard(n) {
+  N = n;
+  WIN_LINES = computeWinLines(N, K);
+  board = new Array(N * N).fill(0);
+  boardEl.setAttribute('data-n', String(N));
+  boardEl.innerHTML = '';
+  cellEls = [];
+  for (let i = 0; i < N * N; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'cell';
+    btn.setAttribute('data-i', String(i));
+    btn.addEventListener('click', function () { onCellClick(i); });
+    boardEl.appendChild(btn);
+    cellEls.push(btn);
+  }
+}
 
 function updateScoreStrip() {
   let html = '';
@@ -265,6 +336,7 @@ function updateScoreStrip() {
     html += '<span class="sc">⭕ Игрок 2: ' + session.p2 + '</span>';
     html += '<span class="sc">🤝 ' + session.draws + '</span>';
   }
+  html += '<span class="sc">📐 ' + N + '×' + N + '</span>';
   scoreStripEl.innerHTML = html;
 }
 
@@ -280,7 +352,7 @@ function updateTurnLabel() {
 }
 
 function paintBoard(highlight) {
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < cellEls.length; i++) {
     const el = cellEls[i];
     el.classList.remove('win');
     if (board[i] === 1) { el.textContent = '❌'; el.disabled = true; }
@@ -296,16 +368,22 @@ function paintBoard(highlight) {
 
 function checkWinner(b) {
   for (let k = 0; k < WIN_LINES.length; k++) {
-    const [a, c, d] = WIN_LINES[k];
-    if (b[a] && b[a] === b[c] && b[a] === b[d]) return { player: b[a], line: WIN_LINES[k] };
+    const line = WIN_LINES[k];
+    const first = b[line[0]];
+    if (!first) continue;
+    let all = true;
+    for (let j = 1; j < line.length; j++) {
+      if (b[line[j]] !== first) { all = false; break; }
+    }
+    if (all) return { player: first, line: line };
   }
-  for (let i = 0; i < 9; i++) if (b[i] === 0) return null;
+  for (let i = 0; i < b.length; i++) if (b[i] === 0) return null;
   return { player: 0, line: null }; // ничья
 }
 
 function startNewRound() {
   if (roundTimer) { clearTimeout(roundTimer); roundTimer = null; }
-  board = new Array(9).fill(0);
+  board = new Array(N * N).fill(0);
   currentPlayer = 1;
   state = 'play';
   roundOverlay.classList.add('hidden');
@@ -317,6 +395,7 @@ function startSession(m) {
   ensureAudio();
   mode = m; M = MODES[m];
   session = { wins: 0, losses: 0, draws: 0, games: 0, p1: 0, p2: 0 };
+  buildBoard(selectedSize);
   startScreen.classList.add('hidden');
   endScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
@@ -347,7 +426,7 @@ function makeMove(i, player) {
   if (M.isBot && currentPlayer === 2) {
     // задержка «раздумья» бота, чтобы не выглядел мгновенным
     const delay = 500 + Math.random() * 450;
-    setTimeout(() => {
+    setTimeout(function () {
       if (state !== 'play' || currentPlayer !== 2) return;
       const idx = pickBotMove();
       if (idx == null || idx < 0) return;
@@ -358,7 +437,7 @@ function makeMove(i, player) {
 
 function emptyCells() {
   const r = [];
-  for (let i = 0; i < 9; i++) if (board[i] === 0) r.push(i);
+  for (let i = 0; i < board.length; i++) if (board[i] === 0) r.push(i);
   return r;
 }
 
@@ -380,28 +459,49 @@ function foxMove() {
   // 2. Если игрок может выиграть — заблокировать.
   idx = findLineMove(1);
   if (idx >= 0) return idx;
-  // 3. Центр.
-  if (board[4] === 0) return 4;
-  // 4. Свободный угол.
-  const corners = [0, 2, 6, 8].filter(i => board[i] === 0);
-  if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
-  // 5. Свободный край.
-  const edges = [1, 3, 5, 7].filter(i => board[i] === 0);
-  if (edges.length) return edges[Math.floor(Math.random() * edges.length)];
-  return catMove();
+  // 3. Позиционная эвристика: для каждой пустой клетки считаем «ценность» —
+  //    сумма веса всех НЕЗАБЛОКИРОВАННЫХ линий, в которых она участвует.
+  //    Линия «блокирована», если в ней уже стоят и наши, и чужие символы.
+  //    Так бот естественно тянется к центру и к местам с потенциальными угрозами.
+  //    Работает и для 3×3 (центр→углы→края), и для 5×5.
+  const empty = emptyCells();
+  let bestScore = -Infinity;
+  let bestIdxs = [];
+  for (let e = 0; e < empty.length; e++) {
+    const i = empty[e];
+    let score = 0;
+    for (let k = 0; k < WIN_LINES.length; k++) {
+      const line = WIN_LINES[k];
+      if (line.indexOf(i) < 0) continue;
+      let mine = 0, theirs = 0;
+      for (let j = 0; j < line.length; j++) {
+        if (line[j] === i) continue;
+        const v = board[line[j]];
+        if (v === 2) mine++;
+        else if (v === 1) theirs++;
+      }
+      if (mine > 0 && theirs > 0) continue;    // линия уже никому не даст победу
+      score += 1 + mine * 4 + theirs * 3;
+    }
+    if (score > bestScore) { bestScore = score; bestIdxs = [i]; }
+    else if (score === bestScore) bestIdxs.push(i);
+  }
+  if (bestIdxs.length === 0) return catMove();
+  return bestIdxs[Math.floor(Math.random() * bestIdxs.length)];
 }
 
 function findLineMove(p) {
-  // Возвращает индекс пустой клетки, поставив p в которую, p выиграет.
+  // Возвращает индекс пустой клетки, поставив p в которую, p выиграет
+  // (в линии K−1 своих и одна пустая). Работает для любого K.
   for (let k = 0; k < WIN_LINES.length; k++) {
-    const [a, b, c] = WIN_LINES[k];
-    const trio = [board[a], board[b], board[c]];
+    const line = WIN_LINES[k];
     let cnt = 0, zero = -1;
-    for (let j = 0; j < 3; j++) {
-      if (trio[j] === p) cnt++;
-      else if (trio[j] === 0) zero = j;
+    for (let j = 0; j < line.length; j++) {
+      const v = board[line[j]];
+      if (v === p) cnt++;
+      else if (v === 0) zero = j;
     }
-    if (cnt === 2 && zero >= 0) return WIN_LINES[k][zero];
+    if (cnt === line.length - 1 && zero >= 0) return line[zero];
   }
   return -1;
 }
@@ -409,7 +509,7 @@ function findLineMove(p) {
 function endRound(res) {
   state = 'roundOver';
   session.games++;
-  for (let i = 0; i < 9; i++) cellEls[i].disabled = true;
+  for (let i = 0; i < cellEls.length; i++) cellEls[i].disabled = true;
   turnLabelEl.textContent = '';
 
   const nm = getName();
@@ -452,7 +552,7 @@ function endRound(res) {
   roundSubEl.textContent = sub;
   // Даём чуть посмотреть на подсветку победной линии до появления окна.
   const delay = res.player === 0 ? 450 : 800;
-  roundTimer = setTimeout(() => { roundOverlay.classList.remove('hidden'); roundTimer = null; }, delay);
+  roundTimer = setTimeout(function () { roundOverlay.classList.remove('hidden'); roundTimer = null; }, delay);
 }
 
 function endSession() {
@@ -495,7 +595,7 @@ function endSession() {
   endTitleEl.textContent = nm && M.isBot ? title.replace(/!$/, ', ' + nm + '!') : title;
   starsEl.textContent = stars ? '⭐'.repeat(stars) : '';
   endSummaryEl.textContent = summary;
-  scoreLineEl.textContent = 'Режим «' + M.name + '». Игр: ' + session.games + '.';
+  scoreLineEl.textContent = 'Режим «' + M.name + '», доска ' + N + '×' + N + '. Игр: ' + session.games + '.';
 
   if (stars > 0 && window.awardStars) awardStars('krestiki', stars);
   if (stars >= 2 && window.fireConfetti) fireConfetti();
@@ -511,22 +611,35 @@ function showStart() {
   startScreen.classList.remove('hidden');
 }
 
+/* ---------- Селектор размера доски ---------- */
+function refreshSizeButtons() {
+  const btns = document.querySelectorAll('.size-btn');
+  for (let i = 0; i < btns.length; i++) {
+    const s = parseInt(btns[i].getAttribute('data-size'), 10);
+    btns[i].classList.toggle('active', s === selectedSize);
+  }
+}
+document.querySelectorAll('.size-btn').forEach(function (b) {
+  b.addEventListener('click', function () {
+    selectedSize = parseInt(b.getAttribute('data-size'), 10);
+    try { localStorage.setItem('krestiki_size', String(selectedSize)); } catch (e) {}
+    refreshSizeButtons();
+  });
+});
+refreshSizeButtons();
+
 /* ---------- Обработчики ---------- */
-cellEls.forEach((el) => {
-  el.addEventListener('click', () => onCellClick(parseInt(el.getAttribute('data-i'), 10)));
+document.querySelectorAll('.lvl-btn').forEach(function (b) {
+  b.addEventListener('click', function () { ensureAudio(); startSession(b.getAttribute('data-mode')); });
 });
 
-document.querySelectorAll('.lvl-btn').forEach((b) => {
-  b.addEventListener('click', () => { ensureAudio(); startSession(b.getAttribute('data-mode')); });
-});
-
-document.getElementById('againBtn').addEventListener('click', () => {
+document.getElementById('againBtn').addEventListener('click', function () {
   roundOverlay.classList.add('hidden'); startNewRound();
 });
-document.getElementById('stopBtn').addEventListener('click', () => {
+document.getElementById('stopBtn').addEventListener('click', function () {
   roundOverlay.classList.add('hidden'); endSession();
 });
-document.getElementById('playAgainBtn').addEventListener('click', () => startSession(mode));
+document.getElementById('playAgainBtn').addEventListener('click', function () { startSession(mode); });
 document.getElementById('changeModeBtn').addEventListener('click', showStart);
 
 function midGame() { return state === 'play' || state === 'roundOver'; }
@@ -538,25 +651,25 @@ function askConfirm(msg, onYes) {
   confirmTextEl.textContent = msg; pendingYes = onYes;
   confirmOverlay.classList.remove('hidden');
 }
-document.getElementById('cfYes').addEventListener('click', () => {
+document.getElementById('cfYes').addEventListener('click', function () {
   confirmOverlay.classList.add('hidden'); const fn = pendingYes; pendingYes = null; if (fn) fn();
 });
-document.getElementById('cfNo').addEventListener('click', () => {
+document.getElementById('cfNo').addEventListener('click', function () {
   confirmOverlay.classList.add('hidden'); pendingYes = null;
 });
 
-document.getElementById('homeBtn').addEventListener('click', (e) => {
+document.getElementById('homeBtn').addEventListener('click', function (e) {
   if (midGame()) {
     e.preventDefault();
-    askConfirm('Выйти в меню? Результат не сохранится.', () => { window.location.href = 'index.html'; });
+    askConfirm('Выйти в меню? Результат не сохранится.', function () { window.location.href = 'index.html'; });
   }
 });
-document.getElementById('modeBtn').addEventListener('click', () => {
+document.getElementById('modeBtn').addEventListener('click', function () {
   if (midGame()) askConfirm('Выбрать другой режим? Результат не сохранится.', showStart);
   else showStart();
 });
-document.getElementById('restartBtn').addEventListener('click', () => {
-  if (midGame()) askConfirm('Начать заново? Счёт обнулится.', () => startSession(mode));
+document.getElementById('restartBtn').addEventListener('click', function () {
+  if (midGame()) askConfirm('Начать заново? Счёт обнулится.', function () { startSession(mode); });
   else startSession(mode);
 });
 
@@ -580,10 +693,10 @@ function tone(freqs, dur, type) {
     o.start(t0); o.stop(t0 + dur + 0.02);
   });
 }
-const playGood  = () => tone([523.25, 659.25, 783.99], 0.22);
-const playRetry = () => tone([300, 200], 0.18, 'triangle');
-const playDraw  = () => tone([440], 0.16, 'triangle');
-const playTick  = () => tone([660], 0.05, 'sine');
+const playGood  = function () { tone([523.25, 659.25, 783.99], 0.22); };
+const playRetry = function () { tone([300, 200], 0.18, 'triangle'); };
+const playDraw  = function () { tone([440], 0.16, 'triangle'); };
+const playTick  = function () { tone([660], 0.05, 'sine'); };
 </script>
 
   <canvas id="confetti" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;"></canvas>
