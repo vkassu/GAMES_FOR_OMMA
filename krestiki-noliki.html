@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Игра «Крестики-нолики» — развивающая цель: ЛОГИКА, ПЛАНИРОВАНИЕ, стратегия.
-  Классические ❌⭕. Два размера доски: 3×3 и 5×5 — победа всегда ТРИ в ряд
+  Классические ❌⭕. Три размера доски: 3×3, 4×4 и 5×5 — победа всегда ТРИ в ряд
   (по горизонтали, вертикали или диагонали). Три режима:
     • «С другом» — двое игроков по очереди на одном экране.
     • «Против кошки» — лёгкий бот, ходит случайно.
@@ -88,6 +88,11 @@
     width: min(340px, 90vw); aspect-ratio: 1; margin: 0 auto;
     grid-template-columns: repeat(3, 1fr);
   }
+  .board[data-n="4"] {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    width: min(360px, 92vw);
+  }
   .board[data-n="5"] {
     grid-template-columns: repeat(5, 1fr);
     gap: 6px;
@@ -101,6 +106,11 @@
     cursor: pointer; touch-action: manipulation; padding: 0;
     box-shadow: 0 6px 16px rgba(99,102,241,0.14);
     transition: transform 0.1s ease, background 0.25s ease;
+  }
+  .board[data-n="4"] .cell {
+    font-size: clamp(34px, 10vw, 54px);
+    border-radius: 16px;
+    box-shadow: 0 5px 12px rgba(99,102,241,0.13);
   }
   .board[data-n="5"] .cell {
     font-size: clamp(22px, 7vw, 38px);
@@ -158,6 +168,7 @@
     <div class="size-picker">
       <span class="size-label">Доска:</span>
       <button class="size-btn" data-size="3">3×3</button>
+      <button class="size-btn" data-size="4">4×4</button>
       <button class="size-btn" data-size="5">5×5</button>
     </div>
     <div class="levels">
@@ -165,7 +176,7 @@
       <button class="btn lvl-btn" data-mode="cat">🐱 Против кошки</button>
       <button class="btn lvl-btn" data-mode="fox">🦊 Против лисы</button>
     </div>
-    <div class="hint">Первым ходит ❌ · на 5×5 тоже нужны ТРИ подряд</div>
+    <div class="hint">Первым ходит ❌ · на 4×4 и 5×5 тоже нужны ТРИ подряд</div>
   </div>
 
   <!-- Игровой экран -->
@@ -251,7 +262,7 @@ const MODES = {
 };
 
 const K = 3;                                // длина выигрышной линии (всегда 3)
-let N = 3;                                  // размер доски (3 или 5)
+let N = 3;                                  // размер доски (3, 4 или 5)
 let WIN_LINES = [];                         // все выигрышные линии, считаются по N,K
 let cellEls = [];                           // кнопки-клетки, создаются в buildBoard()
 
@@ -266,7 +277,7 @@ let roundTimer = null;
 let selectedSize = 3;
 try {
   const s = parseInt(localStorage.getItem('krestiki_size') || '3', 10);
-  selectedSize = (s === 5) ? 5 : 3;
+  selectedSize = (s === 4 || s === 5) ? s : 3;
 } catch (e) {}
 
 function symbolFor(p) { return p === 1 ? '❌' : '⭕'; }
