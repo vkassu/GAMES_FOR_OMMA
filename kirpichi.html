@@ -115,7 +115,7 @@
   <div id="startScreen" class="screen">
     <div class="final-emoji">🧱</div>
     <h1>Увернись от кирпичей</h1>
-    <p class="lead">Сверху падают кирпичи. Двигай героя влево-вправо и уворачивайся!</p>
+    <p class="lead">Сверху падают кирпичи. Двигай героя влево-вправо и уворачивайся! Большой кирпич отнимает два ❤️, а серый — самый быстрый!</p>
     <div class="levels" id="levels">
       <button class="btn lvl-btn" data-level="1">🐢 Лёгкий</button>
       <button class="btn lvl-btn" data-level="2">🙂 Средний</button>
@@ -158,6 +158,7 @@
       <a class="game-pill" href="labirint.html" title="Помоги зайке найти морковку">🌀</a>
       <a class="game-pill" href="tatar.html" title="Татарские слова">🗣️</a>
       <a class="game-pill" href="english.html" title="Английские слова">🔤</a>
+      <a class="game-pill" href="krestiki-noliki.html" title="Крестики-нолики">❌</a>
     </div>
   </div>
 
@@ -215,7 +216,7 @@ const playerY = H - 30;
 let leftOn = false, rightOn = false, moveDir = 0, dragging = false;
 const PLAYER_SPEED = 380;      // px/сек для клавиш/кнопок
 let lives = 3, dodges = 0, elapsed = 0;
-let spawnTimer = 0, invuln = 0, brickCount = 0;
+let spawnTimer = 0, invuln = 0, brickCount = 0, smallCount = 0;
 let running = false, paused = false, lastTs = 0, raf = null;
 
 function randRange(a, b) { return a + Math.random() * (b - a); }
@@ -234,7 +235,7 @@ function startGame(lv) {
   playerX = W / 2;
   leftOn = rightOn = false; moveDir = 0; dragging = false;
   lives = 3; dodges = 0; elapsed = 0;
-  spawnTimer = 0.8; invuln = 0; brickCount = 0;
+  spawnTimer = 0.8; invuln = 0; brickCount = 0; smallCount = 0;
   paused = false;
   state = 'play';
   startScreen.classList.add('hidden');
@@ -249,9 +250,15 @@ function startGame(lv) {
 
 function spawnBrick() {
   brickCount++;
-  const s = (brickCount % 8 === 0) ? BS * 2 : BS;
+  let s = BS, v = 1, dmg = 1, gray = false;
+  if (brickCount % 8 === 0) {
+    s = BS * 2; v = 1.5; dmg = 2;
+  } else {
+    smallCount++;
+    if (smallCount % 5 === 0) { gray = true; v = 3; }
+  }
   const x = randRange(s / 2 + 4, W - s / 2 - 4);
-  bricks.push({ x: x, y: -s, s: s, rot: randRange(-0.3, 0.3), vr: randRange(-1.2, 1.2) });
+  bricks.push({ x: x, y: -s, s: s, v: v, dmg: dmg, gray: gray, rot: randRange(-0.3, 0.3), vr: randRange(-1.2, 1.2) });
 }
 
 function loop(ts) {
@@ -284,7 +291,7 @@ function update(dt) {
   // двигаем кирпичи, ловим события
   for (let i = bricks.length - 1; i >= 0; i--) {
     const b = bricks[i];
-    b.y += fallSpeed * dt;
+    b.y += fallSpeed * b.v * dt;
     b.rot += b.vr * dt;
     if (b.y - b.s / 2 > H) {                 // улетел вниз — увернулись
       bricks.splice(i, 1);
@@ -297,15 +304,16 @@ function update(dt) {
       const dx = Math.abs(playerX - b.x), dy = Math.abs(playerY - b.y);
       if (dx < (PW + b.s) / 2 - 8 && dy < (PH + b.s) / 2 - 8) {
         bricks.splice(i, 1);
-        hit();
+        hit(b.dmg);
         if (lives <= 0) { endGame(); return; }
       }
     }
   }
 }
 
-function hit() {
-  lives--;
+function hit(dmg) {
+  lives -= dmg;
+  if (lives < 0) lives = 0;
   invuln = 1.2;
   playRetry();
   updateHud();
@@ -330,8 +338,12 @@ function draw() {
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.rotate(b.rot);
-    ctx.font = b.s + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
-    ctx.fillText('🧱', 0, 0);
+    if (b.gray) {
+      drawGrayBrick(b.s);
+    } else {
+      ctx.font = b.s + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+      ctx.fillText('🧱', 0, 0);
+    }
     ctx.restore();
   }
 
@@ -341,6 +353,22 @@ function draw() {
     ctx.font = '40px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
     ctx.fillText(hero, playerX, playerY);
   }
+}
+
+// серый кирпич рисуем вручную: эмодзи 🧱 всегда красный, а ctx.filter
+// (grayscale) не работает на старых iOS Safari
+function drawGrayBrick(s) {
+  const w = s * 0.92, h = s * 0.68;
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = '#4b5563';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0);
+  ctx.moveTo(-w / 6, -h / 2); ctx.lineTo(-w / 6, 0);
+  ctx.moveTo(w / 6, 0); ctx.lineTo(w / 6, h / 2);
+  ctx.stroke();
 }
 
 function endGame() {
