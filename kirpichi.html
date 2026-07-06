@@ -215,7 +215,7 @@ const playerY = H - 30;
 let leftOn = false, rightOn = false, moveDir = 0, dragging = false;
 const PLAYER_SPEED = 380;      // px/сек для клавиш/кнопок
 let lives = 3, dodges = 0, elapsed = 0;
-let spawnTimer = 0, invuln = 0;
+let spawnTimer = 0, invuln = 0, brickCount = 0;
 let running = false, paused = false, lastTs = 0, raf = null;
 
 function randRange(a, b) { return a + Math.random() * (b - a); }
@@ -234,7 +234,7 @@ function startGame(lv) {
   playerX = W / 2;
   leftOn = rightOn = false; moveDir = 0; dragging = false;
   lives = 3; dodges = 0; elapsed = 0;
-  spawnTimer = 0.8; invuln = 0;
+  spawnTimer = 0.8; invuln = 0; brickCount = 0;
   paused = false;
   state = 'play';
   startScreen.classList.add('hidden');
@@ -248,8 +248,10 @@ function startGame(lv) {
 }
 
 function spawnBrick() {
-  const x = randRange(BS / 2 + 4, W - BS / 2 - 4);
-  bricks.push({ x: x, y: -BS, rot: randRange(-0.3, 0.3), vr: randRange(-1.2, 1.2) });
+  brickCount++;
+  const s = (brickCount % 8 === 0) ? BS * 2 : BS;
+  const x = randRange(s / 2 + 4, W - s / 2 - 4);
+  bricks.push({ x: x, y: -s, s: s, rot: randRange(-0.3, 0.3), vr: randRange(-1.2, 1.2) });
 }
 
 function loop(ts) {
@@ -284,7 +286,7 @@ function update(dt) {
     const b = bricks[i];
     b.y += fallSpeed * dt;
     b.rot += b.vr * dt;
-    if (b.y - BS / 2 > H) {                 // улетел вниз — увернулись
+    if (b.y - b.s / 2 > H) {                 // улетел вниз — увернулись
       bricks.splice(i, 1);
       dodges++;
       updateHud();
@@ -293,7 +295,7 @@ function update(dt) {
     }
     if (invuln <= 0) {                       // проверка столкновения
       const dx = Math.abs(playerX - b.x), dy = Math.abs(playerY - b.y);
-      if (dx < (PW + BS) / 2 - 8 && dy < (PH + BS) / 2 - 8) {
+      if (dx < (PW + b.s) / 2 - 8 && dy < (PH + b.s) / 2 - 8) {
         bricks.splice(i, 1);
         hit();
         if (lives <= 0) { endGame(); return; }
@@ -323,12 +325,12 @@ function draw() {
   // кирпичи
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = BS + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
   for (let i = 0; i < bricks.length; i++) {
     const b = bricks[i];
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.rotate(b.rot);
+    ctx.font = b.s + 'px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
     ctx.fillText('🧱', 0, 0);
     ctx.restore();
   }
