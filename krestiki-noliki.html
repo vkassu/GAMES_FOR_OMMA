@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!--
   Игра «Крестики-нолики» — развивающая цель: ЛОГИКА, ПЛАНИРОВАНИЕ, стратегия.
-  Классические ❌⭕. Три размера доски: 3×3, 4×4 и 5×5 — победа всегда ТРИ в ряд
-  (по горизонтали, вертикали или диагонали). Три режима:
+  Классические ❌⭕. Три размера доски: 3×3 и 5×5 — победа за ТРИ в ряд,
+  4×4 — победа за ЧЕТЫРЕ в ряд (по горизонтали, вертикали или диагонали).
+  Три режима:
     • «С другом» — двое игроков по очереди на одном экране.
     • «Против кошки» — лёгкий бот, ходит случайно.
     • «Против лисы» — хитрый бот: выигрывает/блокирует + позиционная эвристика,
@@ -164,7 +165,7 @@
   <div id="startScreen" class="screen">
     <div class="final-emoji">❌ ⭕</div>
     <h1>Крестики-нолики</h1>
-    <p class="lead">Собери три в ряд раньше противника</p>
+    <p class="lead">Собери линию раньше противника</p>
     <div class="size-picker">
       <span class="size-label">Доска:</span>
       <button class="size-btn" data-size="3">3×3</button>
@@ -176,7 +177,7 @@
       <button class="btn lvl-btn" data-mode="cat">🐱 Против кошки</button>
       <button class="btn lvl-btn" data-mode="fox">🦊 Против лисы</button>
     </div>
-    <div class="hint">Первым ходит ❌ · на 4×4 и 5×5 тоже нужны ТРИ подряд</div>
+    <div class="hint">На 3×3 и 5×5 нужны ТРИ подряд, на 4×4 — ЧЕТЫРЕ подряд. Первым ходит ❌.</div>
   </div>
 
   <!-- Игровой экран -->
@@ -261,8 +262,9 @@ const MODES = {
   fox:    { name: 'Против лисы',  emoji: '🦊', foeName: 'лиса',   isBot: true,  hard: true  }
 };
 
-const K = 3;                                // длина выигрышной линии (всегда 3)
+let K = 3;                                  // длина выигрышной линии (3 для 3×3/5×5, 4 для 4×4)
 let N = 3;                                  // размер доски (3, 4 или 5)
+function kForSize(n) { return n === 4 ? 4 : 3; }
 let WIN_LINES = [];                         // все выигрышные линии, считаются по N,K
 let cellEls = [];                           // кнопки-клетки, создаются в buildBoard()
 
@@ -321,6 +323,7 @@ function computeWinLines(n, k) {
 // Пересоздаёт клетки под текущий N (вызывается при старте сессии).
 function buildBoard(n) {
   N = n;
+  K = kForSize(N);
   WIN_LINES = computeWinLines(N, K);
   board = new Array(N * N).fill(0);
   boardEl.setAttribute('data-n', String(N));
@@ -347,7 +350,7 @@ function updateScoreStrip() {
     html += '<span class="sc">⭕ Игрок 2: ' + session.p2 + '</span>';
     html += '<span class="sc">🤝 ' + session.draws + '</span>';
   }
-  html += '<span class="sc">📐 ' + N + '×' + N + '</span>';
+  html += '<span class="sc">📐 ' + N + '×' + N + ' · ' + K + ' в ряд</span>';
   scoreStripEl.innerHTML = html;
 }
 
@@ -606,7 +609,7 @@ function endSession() {
   endTitleEl.textContent = nm && M.isBot ? title.replace(/!$/, ', ' + nm + '!') : title;
   starsEl.textContent = stars ? '⭐'.repeat(stars) : '';
   endSummaryEl.textContent = summary;
-  scoreLineEl.textContent = 'Режим «' + M.name + '», доска ' + N + '×' + N + '. Игр: ' + session.games + '.';
+  scoreLineEl.textContent = 'Режим «' + M.name + '», доска ' + N + '×' + N + ' (' + K + ' в ряд). Игр: ' + session.games + '.';
 
   if (stars > 0 && window.awardStars) awardStars('krestiki', stars);
   if (stars >= 2 && window.fireConfetti) fireConfetti();
