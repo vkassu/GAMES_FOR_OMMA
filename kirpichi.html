@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <!--
   Игра «Увернись от кирпичей» — развивающая цель: РЕАКЦИЯ, ВНИМАНИЕ, координация.
-  Сверху падают кирпичи 🧱, герой внизу уворачивается, двигаясь влево-вправо.
+  Два режима: «Сверху» — кирпичи 🧱 падают (каждый 8-й большой, каждый 5-й
+  маленький — серый и быстрый); «По земле» — кирпичи катятся с двух сторон,
+  только маленькие обычные и в 2 раза реже, их надо перепрыгивать;
+  на среднем уровне сверху дополнительно падают маленькие обычные.
   Управление: стрелки/A-D (и Ф-В), перетаскивание пальцем по полю, экранные
   кнопки ◀ ▲ ▶; прыжок — ▲, пробел, стрелка вверх или W.
   3 жизни-сердечка (мягкий проигрыш, без резких звуков). 3 уровня
@@ -66,6 +69,13 @@
   .levels { display: flex; flex-direction: column; gap: 12px; align-items: center; }
   .lvl-btn { width: 300px; max-width: 100%; }
 
+  .modes { display: flex; gap: 10px; justify-content: center; margin-bottom: 18px; }
+  .mode-btn { font-family: inherit; font-weight: 700; font-size: clamp(15px, 3.6vw, 19px);
+    border: none; border-radius: 16px; padding: 12px 18px; background: #fff; color: var(--accent);
+    cursor: pointer; box-shadow: 0 6px 16px rgba(234,88,12,0.16); touch-action: manipulation; }
+  .mode-btn.active { background: var(--accent); color: #fff; box-shadow: 0 8px 20px rgba(234,88,12,0.30); }
+  .mode-btn:active { transform: scale(0.96); }
+
   .progress { font-size: clamp(16px, 3.8vw, 21px); color: #6b7280; font-weight: 800; margin-bottom: 10px; min-height: 26px; }
 
   /* игровое поле */
@@ -116,7 +126,11 @@
   <div id="startScreen" class="screen">
     <div class="final-emoji">🧱</div>
     <h1>Увернись от кирпичей</h1>
-    <p class="lead">Сверху падают кирпичи. Двигай героя влево-вправо и уворачивайся! Большой кирпич отнимает два ❤️, а серый — самый быстрый!</p>
+    <p class="lead">Двигай героя и уворачивайся от кирпичей! Большой отнимает два ❤️, серый — самый быстрый. «По земле» — перепрыгивай кирпичи кнопкой ▲!</p>
+    <div class="modes" id="modes">
+      <button class="mode-btn active" data-mode="fall">🧱 Сверху</button>
+      <button class="mode-btn" data-mode="roll">↔️ По земле</button>
+    </div>
     <div class="levels" id="levels">
       <button class="btn lvl-btn" data-level="1">🐢 Лёгкий</button>
       <button class="btn lvl-btn" data-level="2">🙂 Средний</button>
@@ -210,6 +224,7 @@ try { hero = localStorage.getItem('omma_hero') || '🦄'; } catch (e) {}
 
 let state = 'start';           // 'start' | 'play' | 'end'
 let level = 1, L = LEVELS[1];
+let gameMode = 'fall';         // 'fall' — падают сверху | 'roll' — катятся по земле
 let bricks = [];
 const PW = 30, PH = 28;        // хитбокс героя
 const BS = 34;                 // размер кирпича
@@ -220,7 +235,7 @@ const GRAV = 1500, JUMP_V = 540;         // высота прыжка ≈ JUMP_V
 let leftOn = false, rightOn = false, moveDir = 0, dragging = false;
 const PLAYER_SPEED = 380;      // px/сек для клавиш/кнопок
 let lives = 3, dodges = 0, elapsed = 0;
-let spawnTimer = 0, invuln = 0, brickCount = 0, smallCount = 0;
+let spawnTimer = 0, fallTimer = 0, invuln = 0, brickCount = 0, smallCount = 0;
 let running = false, paused = false, lastTs = 0, raf = null;
 
 function randRange(a, b) { return a + Math.random() * (b - a); }
@@ -240,7 +255,7 @@ function startGame(lv) {
   yOff = 0; vy = 0; onGround = true;
   leftOn = rightOn = false; moveDir = 0; dragging = false;
   lives = 3; dodges = 0; elapsed = 0;
-  spawnTimer = 0.8; invuln = 0; brickCount = 0; smallCount = 0;
+  spawnTimer = 0.8; fallTimer = 1.8; invuln = 0; brickCount = 0; smallCount = 0;
   paused = false;
   state = 'play';
   startScreen.classList.add('hidden');
@@ -254,6 +269,15 @@ function startGame(lv) {
 }
 
 function spawnBrick() {
+  if (gameMode === 'roll') {   // по земле: только маленькие обычные, с двух сторон
+    let dir = Math.random() < 0.5 ? 1 : -1;
+    // герой у самого края — кирпич едет с другой стороны, а не спавнится на нём
+    if (playerX < 70) dir = -1;
+    else if (playerX > W - 70) dir = 1;
+    bricks.push({ roll: true, dir: dir, x: dir > 0 ? -BS / 2 : W + BS / 2,
+      y: H - 14 - BS / 2, s: BS, v: 1, dmg: 1, gray: false, rot: 0, vr: 0 });
+    return;
+  }
   brickCount++;
   let s = BS, v = 1, dmg = 1, gray = false;
   if (brickCount % 8 === 0) {
@@ -262,6 +286,15 @@ function spawnBrick() {
     smallCount++;
     if (smallCount % 5 === 0) { gray = true; v = 3; }
   }
+  spawnFalling(s, v, dmg, gray);
+}
+
+// маленький обычный кирпич сверху для среднего уровня режима «по земле»
+function spawnSmallFalling() {
+  spawnFalling(BS, 1, 1, false);
+}
+
+function spawnFalling(s, v, dmg, gray) {
   const x = randRange(s / 2 + 4, W - s / 2 - 4);
   bricks.push({ x: x, y: -s, s: s, v: v, dmg: dmg, gray: gray, rot: randRange(-0.3, 0.3), vr: randRange(-1.2, 1.2) });
 }
@@ -294,18 +327,32 @@ function update(dt) {
 
   // сложность растёт со временем
   const fallSpeed = L.fall + elapsed * L.rampFall;
-  const spawnEvery = Math.max(L.minSpawn, L.spawn - elapsed * L.rampSpawn);
+  let spawnEvery = Math.max(L.minSpawn, L.spawn - elapsed * L.rampSpawn);
+  if (gameMode === 'roll') spawnEvery *= 2;   // катящихся — в 2 раза меньше
   spawnTimer -= dt;
   if (spawnTimer <= 0) { spawnBrick(); spawnTimer += spawnEvery; }
+  // на среднем уровне режима «по земле» сверху ещё падают маленькие обычные
+  if (gameMode === 'roll' && level === 2) {
+    fallTimer -= dt;
+    if (fallTimer <= 0) { spawnSmallFalling(); fallTimer += spawnEvery; }
+  }
 
   if (invuln > 0) invuln -= dt;
 
   // двигаем кирпичи, ловим события
   for (let i = bricks.length - 1; i >= 0; i--) {
     const b = bricks[i];
-    b.y += fallSpeed * b.v * dt;
-    b.rot += b.vr * dt;
-    if (b.y - b.s / 2 > H) {                 // улетел вниз — увернулись
+    let gone;
+    if (b.roll) {
+      b.x += fallSpeed * b.v * b.dir * dt;
+      b.rot += fallSpeed * b.dir / (b.s / 2) * dt;   // крутится как колесо
+      gone = (b.dir > 0 && b.x - b.s / 2 > W) || (b.dir < 0 && b.x + b.s / 2 < 0);
+    } else {
+      b.y += fallSpeed * b.v * dt;
+      b.rot += b.vr * dt;
+      gone = b.y - b.s / 2 > H;
+    }
+    if (gone) {                              // мимо — увернулись
       bricks.splice(i, 1);
       dodges++;
       updateHud();
@@ -391,11 +438,14 @@ function endGame() {
   navRight.classList.add('hidden');
   endScreen.classList.remove('hidden');
 
+  // в режиме «по земле» кирпичей вдвое меньше — пороги звёзд ниже
+  const t3 = gameMode === 'roll' ? 12 : 25;
+  const t2 = gameMode === 'roll' ? 6 : 12;
   let stars, title, summary;
-  if (dodges >= 25) {
+  if (dodges >= t3) {
     stars = '⭐⭐⭐'; title = 'Супер!';
     summary = 'Вот это ловкость — увернулся ' + dodges + ' раз!';
-  } else if (dodges >= 12) {
+  } else if (dodges >= t2) {
     stars = '⭐⭐'; title = 'Здорово!';
     summary = 'Хороший результат: ' + dodges + ' уворотов!';
   } else {
@@ -406,7 +456,7 @@ function endGame() {
   endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
   starsEl.textContent = stars;
   endSummaryEl.textContent = summary;
-  scoreLineEl.textContent = 'Уровень «' + L.name + '». Уворотов: ' + dodges;
+  scoreLineEl.textContent = 'Уровень «' + L.name + '»' + (gameMode === 'roll' ? ' · по земле' : '') + '. Уворотов: ' + dodges;
   playGood();
   if (window.fireConfetti) fireConfetti();
   if (window.awardStars) awardStars('kirpichi', stars.length);
@@ -533,6 +583,13 @@ document.getElementById('cfNo').addEventListener('click', function () {
 
 function midGame() { return state === 'play'; }
 
+document.querySelectorAll('.mode-btn').forEach(function (b) {
+  b.addEventListener('click', function () {
+    ensureAudio();
+    gameMode = b.getAttribute('data-mode');
+    document.querySelectorAll('.mode-btn').forEach(function (x) { x.classList.toggle('active', x === b); });
+  });
+});
 document.querySelectorAll('.lvl-btn').forEach(function (b) {
   b.addEventListener('click', function () { ensureAudio(); startGame(parseInt(b.getAttribute('data-level'), 10)); });
 });
