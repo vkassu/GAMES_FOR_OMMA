@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<!--
+  Игра «Убеги от волка» — развивающая цель: ЛОГИКА, ПЛАНИРОВАНИЕ, пространственное мышление.
+  Пошаговая погоня в случайном лабиринте 10×10: герой (omma_hero) должен добежать
+  до домика 🏡, волк 🐺 гонится за ним. Ходят по очереди, по 1 клетке.
+  Лабиринт: идеальный (DFS) + 1 комната 3×3 и 2 комнаты 2×2 + убраны все тупики;
+  гарантированно есть минимум 2 непересекающихся пути от старта до финиша
+  (проверка twoRoutes, иначе перегенерация). Волк умный (BFS к игроку), но
+  с вероятностью 20% «тупит» (случайный ход). Волк ловит, встав на клетку героя
+  (или герой сам шагнул в волка). 3 лабиринта за игру, поимка — мягкий повтор.
+  Навигация и плюшки как в других играх: верхний бар, конфетти, копилка звёзд,
+  имя в похвале, общие темы оформления.
+  Чистый HTML/CSS/JS, один файл, офлайн, работает по file:// и на iOS.
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Убеги от волка">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Убеги от волка</title>
+<style>
+  :root {
+    --bg1: #dcfce7;
+    --bg2: #dbeafe;
+    --card: #ffffff;
+    --text: #1f2937;
+    --accent: #16a34a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(10px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  .screen { width: 100%; max-width: 460px; text-align: center; }
+  .hidden { display: none; }
+
+  h1 { font-size: clamp(24px, 5.6vw, 38px); margin: 0 0 10px; }
+  .lead { color: #4b5563; font-size: clamp(15px, 3.6vw, 20px); margin: 0 0 22px; }
+
+  .btn {
+    display: inline-block; border: none; border-radius: 18px;
+    padding: 16px 30px; font-size: clamp(17px, 4vw, 23px);
+    font-weight: 700; font-family: inherit; color: #fff; background: var(--accent);
+    cursor: pointer; box-shadow: 0 8px 20px rgba(22,163,74,0.30);
+    touch-action: manipulation; text-decoration: none;
+  }
+  .btn.secondary { background: #fff; color: var(--accent); box-shadow: 0 6px 16px rgba(22,163,74,0.16); }
+  @media (hover: hover) { .btn:hover { filter: brightness(1.05); } }
+  .btn:active { transform: scale(0.97); }
+
+  .topbar { width: 100%; max-width: 460px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .navbtn { font-family: inherit; font-weight: 700; font-size: clamp(13px, 3.2vw, 16px); border: none; background: #fff; color: var(--accent); border-radius: 999px; padding: 9px 14px; cursor: pointer; text-decoration: none; box-shadow: 0 4px 12px rgba(22,163,74,0.14); touch-action: manipulation; white-space: nowrap; }
+  .navbtn:active { transform: scale(0.96); }
+  .navright { display: flex; gap: 8px; }
+  .navright.hidden { display: none; }
+
+  .progress { font-size: clamp(16px, 3.8vw, 21px); color: #6b7280; font-weight: 800; margin-bottom: 10px; min-height: 26px; }
+
+  /* игровое поле */
+  .stage { position: relative; width: 100%; max-width: 380px; margin: 0 auto; }
+  #game { display: block; width: 100%; height: auto; border-radius: 20px;
+    box-shadow: 0 12px 30px rgba(22,163,74,0.18); background: #f0fdf4; touch-action: none; }
+
+  .dpad { display: grid; grid-template-columns: repeat(3, 76px); gap: 8px; justify-content: center; margin-top: 14px; }
+  .dpad button { font-size: 26px; height: 56px; border: none; border-radius: 16px; background: #fff; color: var(--accent);
+    box-shadow: 0 5px 14px rgba(22,163,74,0.18); cursor: pointer; touch-action: manipulation; font-family: inherit; font-weight: 700; }
+  .dpad button:active { transform: scale(0.94); background: #f0fdf4; }
+  .dpad .empty { visibility: hidden; }
+
+  .hint { font-size: clamp(13px, 3.2vw, 16px); color: #6b7280; margin-top: 12px; }
+
+  .final-emoji { font-size: 66px; margin-bottom: 6px; }
+  .stars { font-size: clamp(40px, 11vw, 64px); letter-spacing: 6px; margin: 8px 0 4px; animation: pop 0.5s ease; }
+  @keyframes pop { 0%{transform:scale(1);} 45%{transform:scale(1.10);} 100%{transform:scale(1);} }
+  .score-line { font-size: clamp(17px, 3.8vw, 22px); color: #4b5563; font-weight: 700; margin: 8px 0 26px; }
+  .final-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  .switcher { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+  .switcher-label { font-size: clamp(15px,3.4vw,18px); font-weight: 700; color: #6b7280; }
+  .game-pill { font-size: 30px; text-decoration: none; line-height: 1; background: #fff; border-radius: 16px; padding: 8px 12px; box-shadow: 0 6px 16px rgba(22,163,74,0.14); touch-action: manipulation; }
+  .game-pill:active { transform: scale(0.94); }
+
+  .overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .overlay.hidden { display: none; }
+  .confirm-box { background: #fff; border-radius: 24px; padding: 26px 24px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .confirm-box .box-emoji { font-size: 54px; margin-bottom: 8px; }
+  .confirm-box p { font-size: clamp(18px,4.4vw,22px); font-weight: 700; margin: 0 0 20px; }
+  .confirm-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .cbtn { font-family: inherit; font-weight: 700; font-size: clamp(16px,4vw,20px); border: none; border-radius: 14px; padding: 14px 26px; cursor: pointer; touch-action: manipulation; }
+  .cbtn-yes { background: var(--accent); color: #fff; }
+  .cbtn-no  { background: #eee; color: #1f2937; }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <a class="navbtn" id="homeBtn" href="index.html">🏠 К играм</a>
+    <div class="navright hidden" id="navRight">
+      <button class="navbtn" id="restartBtn">🔄 Заново</button>
+    </div>
+  </header>
+
+  <!-- Старт -->
+  <div id="startScreen" class="screen">
+    <div class="final-emoji">🐺</div>
+    <h1>Убеги от волка</h1>
+    <p class="lead">Волк гонится за тобой по лабиринту! Добеги до домика 🏡 раньше, чем он тебя поймает. Ты шагаешь на клетку — и волк шагает. Путей к домику всегда два, выбирай хитрее!</p>
+    <button class="btn" id="playBtn">Играть ▶</button>
+    <div class="hint">Ходи: стрелками на клавиатуре, свайпом по полю или кнопками-стрелками</div>
+  </div>
+
+  <!-- Игра -->
+  <div id="gameScreen" class="screen hidden">
+    <div class="progress" id="progress"></div>
+    <div class="stage">
+      <canvas id="game"></canvas>
+    </div>
+    <div class="dpad">
+      <span class="empty"></span><button data-dir="up" aria-label="вверх">▲</button><span class="empty"></span>
+      <button data-dir="left" aria-label="влево">◀</button><button data-dir="down" aria-label="вниз">▼</button><button data-dir="right" aria-label="вправо">▶</button>
+    </div>
+  </div>
+
+  <!-- Финал -->
+  <div id="endScreen" class="screen hidden">
+    <div class="final-emoji">🏆</div>
+    <h1 id="endTitle">Молодец!</h1>
+    <div class="stars" id="stars"></div>
+    <p class="lead" id="endSummary"></p>
+    <p class="score-line" id="scoreLine"></p>
+    <div class="final-buttons">
+      <button class="btn" id="againBtn">Ещё раз 🔁</button>
+    </div>
+    <div class="switcher">
+      <span class="switcher-label">Другая игра:</span>
+      <a class="game-pill" href="matematika.html" title="Математика">🧮</a>
+      <a class="game-pill" href="pamyat.html" title="Память">🧠</a>
+      <a class="game-pill" href="naydi-lishnee.html" title="Найди лишнее">🔍</a>
+      <a class="game-pill" href="zagadki.html" title="Загадки">🤔</a>
+      <a class="game-pill" href="chasy.html" title="Который час?">🕐</a>
+      <a class="game-pill" href="magazin.html" title="Магазин и сдача">🛒</a>
+      <a class="game-pill" href="labirint.html" title="Помоги зайке найти морковку">🌀</a>
+      <a class="game-pill" href="tatar.html" title="Татарские слова">🗣️</a>
+      <a class="game-pill" href="english.html" title="Английские слова">🔤</a>
+      <a class="game-pill" href="kirpichi.html" title="Увернись от кирпичей">🧱</a>
+      <a class="game-pill" href="krestiki-noliki.html" title="Крестики-нолики">❌</a>
+    </div>
+  </div>
+
+  <!-- Сообщение (поймал / лабиринт пройден) -->
+  <div class="overlay hidden" id="msgOverlay">
+    <div class="confirm-box">
+      <div class="box-emoji" id="msgEmoji">🐺</div>
+      <p id="msgText"></p>
+      <div class="confirm-actions">
+        <button class="cbtn cbtn-yes" id="msgBtn">Дальше</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="confirmOverlay">
+    <div class="confirm-box">
+      <p id="confirmText">Выйти? Прогресс не сохранится.</p>
+      <div class="confirm-actions">
+        <button class="cbtn cbtn-yes" id="cfYes">Да</button>
+        <button class="cbtn cbtn-no" id="cfNo">Остаться</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+const startScreen = document.getElementById('startScreen');
+const gameScreen  = document.getElementById('gameScreen');
+const endScreen   = document.getElementById('endScreen');
+const progressEl  = document.getElementById('progress');
+const scoreLineEl = document.getElementById('scoreLine');
+const starsEl     = document.getElementById('stars');
+const endTitleEl  = document.getElementById('endTitle');
+const endSummaryEl= document.getElementById('endSummary');
+const navRight    = document.getElementById('navRight');
+const canvas      = document.getElementById('game');
+const ctx         = canvas.getContext('2d');
+
+const N = 10, CELL = 36, SIZE = N * CELL;
+(function setupCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = SIZE * dpr;
+  canvas.height = SIZE * dpr;
+  ctx.scale(dpr, dpr);
+})();
+
+let hero = '🦄';
+try { hero = localStorage.getItem('omma_hero') || '🦄'; } catch (e) {}
+
+const MAZES = 3;               // лабиринтов за игру
+let state = 'start';           // 'start' | 'play' | 'end'
+let busy = false, pausedUi = false;
+let mazeIndex = 0, movesTotal = 0, catches = 0;
+let player = { r: 0, c: 0 }, wolf = { r: 0, c: 0 }, finish = { r: 0, c: 0 };
+let playerStart = null, wolfStart = null;
+
+/* ===GEN=== генерация лабиринта (без DOM — тестируется отдельно) */
+// стены клетки: N=1, E=2, S=4, W=8 (бит стоит — стена есть)
+const DIRS = {
+  up:    { dr: -1, dc: 0, wall: 1 },
+  right: { dr: 0, dc: 1, wall: 2 },
+  down:  { dr: 1, dc: 0, wall: 4 },
+  left:  { dr: 0, dc: -1, wall: 8 }
+};
+const OPP = { 1: 4, 2: 8, 4: 1, 8: 2 };
+let walls = [];
+let ROOMS = [];                // прямоугольники комнат последней генерации
+
+function inB(r, c) { return r >= 0 && r < N && c >= 0 && c < N; }
+
+function genPerfect() {
+  walls = [];
+  for (let r = 0; r < N; r++) { walls.push([]); for (let c = 0; c < N; c++) walls[r].push(15); }
+  const seen = walls.map(function (row) { return row.map(function () { return false; }); });
+  const stack = [{ r: 0, c: 0 }];
+  seen[0][0] = true;
+  while (stack.length) {
+    const cur = stack[stack.length - 1];
+    const opts = [];
+    for (const k in DIRS) {
+      const d = DIRS[k], nr = cur.r + d.dr, nc = cur.c + d.dc;
+      if (inB(nr, nc) && !seen[nr][nc]) opts.push({ d: d, nr: nr, nc: nc });
+    }
+    if (!opts.length) { stack.pop(); continue; }
+    const o = opts[Math.floor(Math.random() * opts.length)];
+    walls[cur.r][cur.c] &= ~o.d.wall;
+    walls[o.nr][o.nc] &= ~OPP[o.d.wall];
+    seen[o.nr][o.nc] = true;
+    stack.push({ r: o.nr, c: o.nc });
+  }
+}
+
+function carveRoom(r0, c0, h, w) {
+  for (let r = r0; r < r0 + h; r++) for (let c = c0; c < c0 + w; c++) {
+    if (c + 1 < c0 + w) { walls[r][c] &= ~2; walls[r][c + 1] &= ~8; }
+    if (r + 1 < r0 + h) { walls[r][c] &= ~4; walls[r + 1][c] &= ~1; }
+  }
+}
+
+// одна комната 3×3 и две 2×2, без пересечений
+function placeRooms() {
+  ROOMS = [];
+  const specs = [[3, 3], [2, 2], [2, 2]];
+  for (let i = 0; i < specs.length; i++) {
+    const h = specs[i][0], w = specs[i][1];
+    for (let t = 0; t < 200; t++) {
+      const r0 = Math.floor(Math.random() * (N - h + 1));
+      const c0 = Math.floor(Math.random() * (N - w + 1));
+      const rect = { r0: r0, c0: c0, r1: r0 + h - 1, c1: c0 + w - 1 };
+      let ok = true;
+      for (let j = 0; j < ROOMS.length; j++) {
+        const o = ROOMS[j];
+        if (!(rect.r0 > o.r1 || rect.r1 < o.r0 || rect.c0 > o.c1 || rect.c1 < o.c0)) { ok = false; break; }
+      }
+      if (ok) { ROOMS.push(rect); carveRoom(r0, c0, h, w); break; }
+    }
+  }
+}
+
+// убираем все тупики — из каждой клетки минимум 2 выхода, лабиринт с петлями
+function braid() {
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    let deg = 0;
+    for (const k in DIRS) if (!(walls[r][c] & DIRS[k].wall)) deg++;
+    if (deg !== 1) continue;
+    const opts = [];
+    for (const k in DIRS) {
+      const d = DIRS[k], nr = r + d.dr, nc = c + d.dc;
+      if (inB(nr, nc) && (walls[r][c] & d.wall)) opts.push(d);
+    }
+    if (opts.length) {
+      const d = opts[Math.floor(Math.random() * opts.length)];
+      walls[r][c] &= ~d.wall;
+      walls[r + d.dr][c + d.dc] &= ~OPP[d.wall];
+    }
+  }
+}
+
+function bfsFrom(sr, sc, blocked) {
+  const dist = [];
+  for (let r = 0; r < N; r++) { dist.push([]); for (let c = 0; c < N; c++) dist[r].push(-1); }
+  if (blocked && blocked.has(sr + ',' + sc)) return dist;
+  dist[sr][sc] = 0;
+  const q = [[sr, sc]];
+  for (let qi = 0; qi < q.length; qi++) {
+    const r = q[qi][0], c = q[qi][1];
+    for (const k in DIRS) {
+      const d = DIRS[k];
+      if (walls[r][c] & d.wall) continue;
+      const nr = r + d.dr, nc = c + d.dc;
+      if (dist[nr][nc] !== -1) continue;
+      if (blocked && blocked.has(nr + ',' + nc)) continue;
+      dist[nr][nc] = dist[r][c] + 1;
+      q.push([nr, nc]);
+    }
+  }
+  return dist;
+}
+
+function shortestPath(sr, sc, tr, tc) {
+  const dist = bfsFrom(sr, sc);
+  if (dist[tr][tc] === -1) return null;
+  const path = [{ r: tr, c: tc }];
+  let r = tr, c = tc;
+  while (!(r === sr && c === sc)) {
+    for (const k in DIRS) {
+      const d = DIRS[k];
+      if (walls[r][c] & d.wall) continue;
+      const nr = r + d.dr, nc = c + d.dc;
+      if (dist[nr][nc] === dist[r][c] - 1) { r = nr; c = nc; break; }
+    }
+    path.push({ r: r, c: c });
+  }
+  return path.reverse();
+}
+
+// минимум 2 пути: кратчайший путь есть, и без его середины финиш всё равно достижим
+function twoRoutes(s, f) {
+  const p = shortestPath(s.r, s.c, f.r, f.c);
+  if (!p) return false;
+  const blocked = new Set();
+  for (let i = 1; i < p.length - 1; i++) blocked.add(p[i].r + ',' + p[i].c);
+  const d = bfsFrom(s.r, s.c, blocked);
+  return d[f.r][f.c] !== -1;
+}
+
+// возвращает {start, finish, wolf} или null (тогда генерируем заново)
+function genMaze() {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    genPerfect();
+    placeRooms();
+    braid();
+    if (ROOMS.length !== 3) continue;
+    // старт и финиш — концы диаметра лабиринта (двойной BFS)
+    const d0 = bfsFrom(0, 0);
+    let A = { r: 0, c: 0 };
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)
+      if (d0[r][c] > d0[A.r][A.c]) A = { r: r, c: c };
+    const dA = bfsFrom(A.r, A.c);
+    let B = A;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)
+      if (dA[r][c] > dA[B.r][B.c]) B = { r: r, c: c };
+    if (dA[B.r][B.c] < 8) continue;
+    if (!twoRoutes(A, B)) continue;
+    // волк: подальше от героя, не на финише и не вплотную к нему
+    const dB = bfsFrom(B.r, B.c);
+    let wolfPos = null;
+    for (let need = 7; need >= 5 && !wolfPos; need--) {
+      const cands = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)
+        if (dA[r][c] >= need && dB[r][c] >= 2) cands.push({ r: r, c: c });
+      if (cands.length) wolfPos = cands[Math.floor(Math.random() * cands.length)];
+    }
+    if (!wolfPos) continue;
+    return { start: A, finish: B, wolf: wolfPos };
+  }
+  return null;
+}
+
+function openNeighbors(r, c) {
+  const res = [];
+  for (const k in DIRS) {
+    const d = DIRS[k];
+    if (!(walls[r][c] & d.wall)) res.push({ r: r + d.dr, c: c + d.dc });
+  }
+  return res;
+}
+
+// ход волка: умный (шаг по BFS к герою), но с вероятностью 20% «тупит»
+function wolfStep(pr, pc) {
+  const opts = openNeighbors(wolf.r, wolf.c);
+  let target;
+  if (Math.random() < 0.2) {
+    target = opts[Math.floor(Math.random() * opts.length)];
+  } else {
+    const dist = bfsFrom(pr, pc);
+    let best = Infinity, bestOpts = [];
+    for (let i = 0; i < opts.length; i++) {
+      const d = dist[opts[i].r][opts[i].c];
+      if (d === -1) continue;
+      if (d < best) { best = d; bestOpts = [opts[i]]; }
+      else if (d === best) bestOpts.push(opts[i]);
+    }
+    target = bestOpts.length ? bestOpts[Math.floor(Math.random() * bestOpts.length)] : opts[0];
+  }
+  wolf.r = target.r; wolf.c = target.c;
+}
+/* ===/GEN=== */
+
+function updateHud() {
+  progressEl.textContent = '🐺 Лабиринт ' + (mazeIndex + 1) + ' из ' + MAZES + ' · Ходов: ' + movesTotal;
+}
+
+function startMaze() {
+  const m = genMaze();
+  player = { r: m.start.r, c: m.start.c };
+  finish = { r: m.finish.r, c: m.finish.c };
+  wolf   = { r: m.wolf.r,  c: m.wolf.c };
+  playerStart = { r: player.r, c: player.c };
+  wolfStart   = { r: wolf.r,  c: wolf.c };
+  busy = false;
+  updateHud();
+  draw();
+}
+
+function startGame() {
+  ensureAudio();
+  mazeIndex = 0; movesTotal = 0; catches = 0;
+  state = 'play';
+  startScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  gameScreen.classList.remove('hidden');
+  navRight.classList.remove('hidden');
+  startMaze();
+}
+
+/* ---------- Отрисовка ---------- */
+function draw() {
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  // пол
+  ctx.fillStyle = '#f0fdf4';
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  // лёгкая сетка
+  ctx.strokeStyle = '#d1fae5';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < N; i++) {
+    ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, SIZE);
+    ctx.moveTo(0, i * CELL); ctx.lineTo(SIZE, i * CELL);
+  }
+  ctx.stroke();
+  // клетка финиша
+  ctx.fillStyle = '#fef3c7';
+  ctx.fillRect(finish.c * CELL + 2, finish.r * CELL + 2, CELL - 4, CELL - 4);
+  // стены
+  ctx.strokeStyle = '#166534';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const x = c * CELL, y = r * CELL, w = walls[r][c];
+    if ((w & 1) && r === 0) { ctx.moveTo(x, y); ctx.lineTo(x + CELL, y); }
+    if ((w & 8) && c === 0) { ctx.moveTo(x, y); ctx.lineTo(x, y + CELL); }
+    if (w & 2) { ctx.moveTo(x + CELL, y); ctx.lineTo(x + CELL, y + CELL); }
+    if (w & 4) { ctx.moveTo(x, y + CELL); ctx.lineTo(x + CELL, y + CELL); }
+  }
+  ctx.stroke();
+  // фигурки
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '22px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  ctx.fillText('🏡', finish.c * CELL + CELL / 2, finish.r * CELL + CELL / 2 + 1);
+  ctx.font = '24px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  ctx.fillText(hero, player.c * CELL + CELL / 2, player.r * CELL + CELL / 2 + 1);
+  ctx.font = '26px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  ctx.fillText('🐺', wolf.c * CELL + CELL / 2, wolf.r * CELL + CELL / 2 + 1);
+}
+
+/* ---------- Ход игры ---------- */
+function tryMove(dirKey) {
+  if (state !== 'play' || busy || pausedUi) return;
+  const d = DIRS[dirKey];
+  if (!d) return;
+  if (walls[player.r][player.c] & d.wall) return;   // стена — ход не тратится
+  ensureAudio();
+  player.r += d.dr; player.c += d.dc;
+  movesTotal++;
+  playStep();
+  updateHud();
+  draw();
+  if (player.r === wolf.r && player.c === wolf.c) { caught(); return; }
+  if (player.r === finish.r && player.c === finish.c) { mazeDone(); return; }
+  busy = true;
+  setTimeout(function () {
+    wolfStep(player.r, player.c);
+    draw();
+    busy = false;
+    if (wolf.r === player.r && wolf.c === player.c) caught();
+  }, 160);
+}
+
+const msgOverlay = document.getElementById('msgOverlay');
+const msgEmoji = document.getElementById('msgEmoji');
+const msgText = document.getElementById('msgText');
+const msgBtn = document.getElementById('msgBtn');
+let msgAction = null;
+function showMsg(emoji, text, btnLabel, action) {
+  msgEmoji.textContent = emoji;
+  msgText.textContent = text;
+  msgBtn.textContent = btnLabel;
+  msgAction = action;
+  pausedUi = true;
+  msgOverlay.classList.remove('hidden');
+}
+msgBtn.addEventListener('click', function () {
+  msgOverlay.classList.add('hidden');
+  pausedUi = false;
+  const fn = msgAction; msgAction = null;
+  if (fn) fn();
+});
+
+function caught() {
+  catches++;
+  playCatch();
+  showMsg('🐺', 'Ой! Волк тебя поймал. Попробуй ещё раз — у тебя получится!', 'Ещё раз 💪', function () {
+    player = { r: playerStart.r, c: playerStart.c };
+    wolf   = { r: wolfStart.r,  c: wolfStart.c };
+    busy = false;
+    draw();
+  });
+}
+
+function mazeDone() {
+  mazeIndex++;
+  if (mazeIndex >= MAZES) {
+    playWin();
+    showEnd();
+  } else {
+    playGood();
+    showMsg('🏡', 'Ура! Ты добежал до домика, а волк остался ни с чем!', 'Дальше ▶', startMaze);
+  }
+}
+
+function razWord(n) { return n === 1 ? 'раз' : (n < 5 ? 'раза' : 'раз'); }
+
+function showEnd() {
+  state = 'end';
+  gameScreen.classList.add('hidden');
+  navRight.classList.add('hidden');
+  endScreen.classList.remove('hidden');
+
+  let stars, title, summary;
+  if (catches === 0) {
+    stars = '⭐⭐⭐'; title = 'Супер!';
+    summary = 'Ни разу не попался волку — все ' + MAZES + ' лабиринта твои!';
+  } else if (catches <= 2) {
+    stars = '⭐⭐'; title = 'Здорово!';
+    summary = 'Волк ловил тебя ' + catches + ' ' + razWord(catches) + ', но ты всё равно добежал!';
+  } else {
+    stars = '⭐'; title = 'Молодец!';
+    summary = 'Было непросто, но ты прошёл все лабиринты!';
+  }
+  var nm = ''; try { nm = localStorage.getItem('omma_name') || ''; } catch (e) {}
+  endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
+  starsEl.textContent = stars;
+  endSummaryEl.textContent = summary;
+  scoreLineEl.textContent = 'Ходов: ' + movesTotal + ' · Волк ловил: ' + catches;
+  if (window.fireConfetti) fireConfetti();
+  if (window.awardStars) awardStars('volk', stars.length);
+}
+
+function showStart() {
+  state = 'start';
+  gameScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  navRight.classList.add('hidden');
+}
+
+/* ---------- Управление ---------- */
+window.addEventListener('keydown', function (e) {
+  if (state !== 'play') return;
+  let dir = null;
+  if (e.code === 'ArrowUp' || e.code === 'KeyW') dir = 'up';
+  else if (e.code === 'ArrowDown' || e.code === 'KeyS') dir = 'down';
+  else if (e.code === 'ArrowLeft' || e.code === 'KeyA') dir = 'left';
+  else if (e.code === 'ArrowRight' || e.code === 'KeyD') dir = 'right';
+  if (dir) { tryMove(dir); e.preventDefault(); }
+});
+
+document.querySelectorAll('.dpad button').forEach(function (b) {
+  b.addEventListener('click', function () { tryMove(b.getAttribute('data-dir')); });
+});
+
+// свайпы по полю
+let tSX = 0, tSY = 0;
+canvas.addEventListener('touchstart', function (e) {
+  ensureAudio();
+  tSX = e.touches[0].clientX; tSY = e.touches[0].clientY;
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchend', function (e) {
+  const dx = e.changedTouches[0].clientX - tSX;
+  const dy = e.changedTouches[0].clientY - tSY;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+  tryMove(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+});
+
+/* ---------- Звук ---------- */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freqs, dur, type) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  freqs.forEach(function (f, i) {
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = type || 'sine'; o.frequency.value = f;
+    const t0 = now + i * 0.12;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  });
+}
+const playStep  = function () { tone([660], 0.05); };
+const playGood  = function () { tone([523.25, 783.99], 0.16); };
+const playWin   = function () { tone([523.25, 659.25, 783.99], 0.22); };
+const playCatch = function () { tone([300, 200], 0.18, 'triangle'); };
+
+/* ---------- Навигация и подтверждение ---------- */
+const confirmOverlay = document.getElementById('confirmOverlay');
+const confirmTextEl  = document.getElementById('confirmText');
+let pendingYes = null;
+function askConfirm(msg, onYes) {
+  confirmTextEl.textContent = msg; pendingYes = onYes;
+  pausedUi = true;
+  confirmOverlay.classList.remove('hidden');
+}
+document.getElementById('cfYes').addEventListener('click', function () {
+  confirmOverlay.classList.add('hidden'); pausedUi = false;
+  const fn = pendingYes; pendingYes = null; if (fn) fn();
+});
+document.getElementById('cfNo').addEventListener('click', function () {
+  confirmOverlay.classList.add('hidden'); pausedUi = false; pendingYes = null;
+});
+
+function midGame() { return state === 'play' && (mazeIndex > 0 || movesTotal > 0); }
+
+document.getElementById('playBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', startGame);
+document.getElementById('homeBtn').addEventListener('click', function (e) {
+  if (midGame()) { e.preventDefault(); askConfirm('Выйти в меню? Эта игра не сохранится.', function () { window.location.href = 'index.html'; }); }
+});
+document.getElementById('restartBtn').addEventListener('click', function () {
+  if (midGame()) askConfirm('Начать заново? Эта игра не сохранится.', startGame); else startGame();
+});
+</script>
+
+  <canvas id="confetti" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;"></canvas>
+  <script>
+  (function(){
+    var cv=document.getElementById('confetti'), cx=cv.getContext('2d'), parts=[], raf=null;
+    function resize(){ cv.width=window.innerWidth; cv.height=window.innerHeight; }
+    window.addEventListener('resize',resize); resize();
+    var EMO=['⭐','🌟','💖','💛','✨','🎉','🌸'];
+    window.fireConfetti=function(){
+      resize();
+      for(var i=0;i<40;i++){
+        parts.push({x:cv.width*(0.2+Math.random()*0.6), y:cv.height*0.3+(Math.random()-0.5)*60,
+          vx:(Math.random()-0.5)*9, vy:-7-Math.random()*7, g:0.28+Math.random()*0.15,
+          s:18+Math.random()*16, rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3,
+          e:EMO[Math.floor(Math.random()*EMO.length)], life:0});
+      }
+      if(!raf) raf=requestAnimationFrame(step);
+    };
+    function step(){
+      cx.clearRect(0,0,cv.width,cv.height);
+      for(var i=0;i<parts.length;i++){ var p=parts[i];
+        p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life++;
+        cx.save(); cx.translate(p.x,p.y); cx.rotate(p.rot);
+        cx.font=p.s+'px "Segoe UI Emoji","Apple Color Emoji",system-ui,sans-serif';
+        cx.textAlign='center'; cx.textBaseline='middle';
+        cx.globalAlpha=Math.max(0,1-p.life/130);
+        cx.fillText(p.e,0,0); cx.restore();
+      }
+      parts=parts.filter(function(p){return p.life<130 && p.y<cv.height+50;});
+      if(parts.length) raf=requestAnimationFrame(step); else { cx.clearRect(0,0,cv.width,cv.height); raf=null; }
+    }
+  })();
+  window.awardStars=function(game,n){try{
+    localStorage.setItem('omma_stars_total',(parseInt(localStorage.getItem('omma_stars_total')||'0',10)||0)+n);
+    var bk='omma_best_'+game, b=parseInt(localStorage.getItem(bk)||'0',10)||0; if(n>b) localStorage.setItem(bk,n);
+    localStorage.setItem('omma_plays_total',(parseInt(localStorage.getItem('omma_plays_total')||'0',10)||0)+1);
+  }catch(e){}};
+  </script>
+
+  <script>
+  (function(){
+    var css='html[data-theme="rainbow"] body{background:linear-gradient(135deg,#ffd3e0,#d4f1ff,#fff4c2)!important;}'
+      +'html[data-theme="flower"] body{background:linear-gradient(135deg,#ffe0ef,#f3e8ff)!important;}'
+      +'html[data-theme="space"] body{background:linear-gradient(160deg,#241e4e,#3b2d6b,#15213f)!important;}'
+      +'html[data-theme="space"] h1,html[data-theme="space"] .subtitle,html[data-theme="space"] .lead,html[data-theme="space"] .hello,html[data-theme="space"] .progress,html[data-theme="space"] .hint,html[data-theme="space"] .question,html[data-theme="space"] .score-line,html[data-theme="space"] .switcher-label{color:#eef2ff!important;}';
+    var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+    try{var t=localStorage.getItem('omma_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}
+  })();
+  </script>
+</body>
+</html>

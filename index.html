@@ -189,6 +189,11 @@
       <span class="game-title">Крестики-нолики</span>
       <span class="game-desc">С другом или против бота: три в ряд — победа</span>
     </a>
+    <a class="game-card" href="ubegi-ot-volka.html">
+      <span class="game-emoji">🐺</span>
+      <span class="game-title">Убеги от волка</span>
+      <span class="game-desc">Добеги до домика раньше волка: логика и планирование</span>
+    </a>
   </div>
 
 <script>
@@ -247,7 +252,7 @@
   if (total >= 50)  badges.push('🥈 50 звёзд');
   if (total >= 100) badges.push('🏆 100 звёзд');
   if (plays >= 20)  badges.push('🎯 20 игр');
-  [['naydi-lishnee','🔍'],['zagadki','🤔'],['chasy','🕐'],['magazin','🛒'],['labirint','🌀'],['tatar','🗣️'],['english','🔤'],['kirpichi','🧱'],['krestiki','❌']].forEach(function(g){
+  [['naydi-lishnee','🔍'],['zagadki','🤔'],['chasy','🕐'],['magazin','🛒'],['labirint','🌀'],['tatar','🗣️'],['english','🔤'],['kirpichi','🧱'],['krestiki','❌'],['volk','🐺']].forEach(function(g){
     if (gi('omma_best_' + g[0]) >= 3) badges.push(g[1] + ' 3★');
   });
   var bel = document.getElementById('badges');
