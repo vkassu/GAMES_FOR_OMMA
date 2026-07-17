@@ -122,7 +122,7 @@
   <!-- Старт -->
   <div id="startScreen" class="screen">
     <div class="final-emoji" id="startEmoji">🐺</div>
-    <h1>Убеги от волка</h1>
+    <h1 id="startTitle">Убеги от волка</h1>
     <p class="lead">Зверь гонится за тобой по лабиринту! Добеги до домика 🏡 раньше, чем он тебя поймает. Ты шагаешь на клетку — и он шагает. Путей к домику всегда два, выбирай хитрее!</p>
     <div class="modes">
       <button class="mode-btn active" data-enemy="wolf">🐺 Волк</button>
@@ -130,6 +130,10 @@
       <button class="mode-btn" data-enemy="boar">🐗 Кабан</button>
     </div>
     <div class="mode-desc" id="modeDesc">Волк умный, но иногда путается.</div>
+    <div class="modes">
+      <button class="mode-btn size-btn active" data-size="10">Поле 10×10</button>
+      <button class="mode-btn size-btn" data-size="15">Поле 15×15</button>
+    </div>
     <button class="btn" id="playBtn">Играть ▶</button>
     <div class="hint">Ходи: стрелками на клавиатуре, свайпом по полю или кнопками-стрелками</div>
   </div>
@@ -208,26 +212,28 @@ const navRight    = document.getElementById('navRight');
 const canvas      = document.getElementById('game');
 const ctx         = canvas.getContext('2d');
 
-const N = 10, CELL = 36, SIZE = N * CELL;
-(function setupCanvas() {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = SIZE * dpr;
-  canvas.height = SIZE * dpr;
-  ctx.scale(dpr, dpr);
-})();
+const SIZE = 360;              // логический размер поля (клетки подгоняются под N)
+let N = 10, CELL = SIZE / N;   // N — сторона сетки (10 или 15), задаётся на старте
+const dpr = window.devicePixelRatio || 1;
+canvas.width = SIZE * dpr;
+canvas.height = SIZE * dpr;
+ctx.scale(dpr, dpr);
+function applySize(n) { N = n; CELL = SIZE / N; }
 
 let hero = '🦄';
 try { hero = localStorage.getItem('omma_hero') || '🦄'; } catch (e) {}
 
 const MAZES = 3;               // лабиринтов за игру
 // звери-преследователи: blunder — вероятность «тупить» (случайный ход);
-// dash=true — умеет нестись по прямой до стены (кабан)
+// dash — умеет нестись по прямой до стены (кабан), maxDash — макс. клеток за рывок;
+// gen/dat/lost — падежи/род для подстановки имени в надписи.
 const ENEMIES = {
-  wolf: { emoji: '🐺', name: 'Волк',  blunder: 0.20, dash: false, desc: 'Волк умный, но иногда путается.' },
-  fox:  { emoji: '🦊', name: 'Лиса',  blunder: 0.05, dash: false, desc: 'Лиса самая хитрая — почти не ошибается!' },
-  boar: { emoji: '🐗', name: 'Кабан', blunder: 0.25, dash: true,  desc: 'Кабан часто мажет, зато мчится по прямой до стены.' }
+  wolf: { emoji: '🐺', name: 'Волк',  gen: 'волка',  dat: 'волку',  lost: 'остался',  blunder: 0.20, dash: false, desc: 'Волк умный, но иногда путается.' },
+  fox:  { emoji: '🦊', name: 'Лиса',  gen: 'лисы',   dat: 'лисе',   lost: 'осталась', blunder: 0.05, dash: false, desc: 'Лиса самая хитрая — почти не ошибается!' },
+  boar: { emoji: '🐗', name: 'Кабан', gen: 'кабана', dat: 'кабану', lost: 'остался',  blunder: 0.25, dash: true, maxDash: 3, desc: 'Кабан часто мажет, зато мчится по прямой (до 3 клеток).' }
 };
 let enemyType = 'wolf', E = ENEMIES.wolf;
+let sizeChoice = 10;           // выбранный размер поля (10 или 15)
 let state = 'start';           // 'start' | 'play' | 'end'
 let busy = false, pausedUi = false;
 let mazeIndex = 0, movesTotal = 0, catches = 0;
@@ -380,7 +386,7 @@ function genMaze() {
     let B = A;
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)
       if (dA[r][c] > dA[B.r][B.c]) B = { r: r, c: c };
-    if (dA[B.r][B.c] < 8) continue;
+    if (dA[B.r][B.c] < Math.floor(N * 0.8)) continue;   // старт и финиш подальше
     if (!twoRoutes(A, B)) continue;
     // волк: подальше от героя, не на финише и не вплотную к нему
     const dB = bfsFrom(B.r, B.c);
@@ -406,12 +412,12 @@ function openNeighbors(r, c) {
   return res;
 }
 
-// клетки, которые можно пройти по прямой в направлении d, до первой стены
-// (start не входит; порядок — от ближней к дальней)
-function dashCells(r, c, d) {
+// клетки, которые можно пройти по прямой в направлении d, до первой стены,
+// но не больше limit клеток (start не входит; порядок — от ближней к дальней)
+function dashCells(r, c, d, limit) {
   const cells = [];
   let cr = r, cc = c;
-  while (!(walls[cr][cc] & d.wall)) { cr += d.dr; cc += d.dc; cells.push({ r: cr, c: cc }); }
+  while (cells.length < limit && !(walls[cr][cc] & d.wall)) { cr += d.dr; cc += d.dc; cells.push({ r: cr, c: cc }); }
   return cells;
 }
 
@@ -430,7 +436,7 @@ function wolfStep(pr, pc) {
     // кандидаты остановки: у кабана — все клетки прямых пробегов, у остальных — соседи
     let cands = [];
     if (E.dash) {
-      for (const k in DIRS) cands = cands.concat(dashCells(wolf.r, wolf.c, DIRS[k]));
+      for (const k in DIRS) cands = cands.concat(dashCells(wolf.r, wolf.c, DIRS[k], E.maxDash));
     } else {
       cands = opts;
     }
@@ -466,6 +472,7 @@ function startMaze() {
 function startGame() {
   ensureAudio();
   E = ENEMIES[enemyType];
+  applySize(sizeChoice);
   mazeIndex = 0; movesTotal = 0; catches = 0;
   state = 'play';
   startScreen.classList.add('hidden');
@@ -495,7 +502,7 @@ function draw() {
   ctx.fillRect(finish.c * CELL + 2, finish.r * CELL + 2, CELL - 4, CELL - 4);
   // стены
   ctx.strokeStyle = '#166534';
-  ctx.lineWidth = 5;
+  ctx.lineWidth = Math.max(3, CELL * 0.14);
   ctx.lineCap = 'round';
   ctx.beginPath();
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
@@ -506,14 +513,15 @@ function draw() {
     if (w & 4) { ctx.moveTo(x, y + CELL); ctx.lineTo(x + CELL, y + CELL); }
   }
   ctx.stroke();
-  // фигурки
+  // фигурки (размер эмодзи подгоняется под размер клетки)
+  const FF = ' "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '22px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  ctx.font = Math.round(CELL * 0.60) + 'px' + FF;
   ctx.fillText('🏡', finish.c * CELL + CELL / 2, finish.r * CELL + CELL / 2 + 1);
-  ctx.font = '24px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  ctx.font = Math.round(CELL * 0.66) + 'px' + FF;
   ctx.fillText(hero, player.c * CELL + CELL / 2, player.r * CELL + CELL / 2 + 1);
-  ctx.font = '26px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
+  ctx.font = Math.round(CELL * 0.72) + 'px' + FF;
   ctx.fillText(E.emoji, wolf.c * CELL + CELL / 2, wolf.r * CELL + CELL / 2 + 1);
 }
 
@@ -578,7 +586,7 @@ function mazeDone() {
     showEnd();
   } else {
     playGood();
-    showMsg('🏡', 'Ура! Ты добежал до домика, а волк остался ни с чем!', 'Дальше ▶', startMaze);
+    showMsg('🏡', 'Ура! Ты добежал до домика, а ' + E.name + ' ' + E.lost + ' ни с чем!', 'Дальше ▶', startMaze);
   }
 }
 
@@ -593,7 +601,7 @@ function showEnd() {
   let stars, title, summary;
   if (catches === 0) {
     stars = '⭐⭐⭐'; title = 'Супер!';
-    summary = 'Ни разу не попался волку — все ' + MAZES + ' лабиринта твои!';
+    summary = 'Ни разу не попался ' + E.dat + ' — все ' + MAZES + ' лабиринта твои!';
   } else if (catches <= 2) {
     stars = '⭐⭐'; title = 'Здорово!';
     summary = E.name + ' ловил тебя ' + catches + ' ' + razWord(catches) + ', но ты всё равно добежал!';
@@ -694,14 +702,23 @@ function midGame() { return state === 'play' && (mazeIndex > 0 || movesTotal > 0
 
 // выбор зверя на стартовом экране
 const startEmoji = document.getElementById('startEmoji');
+const startTitle = document.getElementById('startTitle');
 const modeDesc = document.getElementById('modeDesc');
-document.querySelectorAll('.mode-btn').forEach(function (b) {
+document.querySelectorAll('.mode-btn[data-enemy]').forEach(function (b) {
   b.addEventListener('click', function () {
     enemyType = b.getAttribute('data-enemy');
     E = ENEMIES[enemyType];
-    document.querySelectorAll('.mode-btn').forEach(function (x) { x.classList.toggle('active', x === b); });
+    document.querySelectorAll('.mode-btn[data-enemy]').forEach(function (x) { x.classList.toggle('active', x === b); });
     startEmoji.textContent = E.emoji;
+    startTitle.textContent = 'Убеги от ' + E.gen;
     modeDesc.textContent = E.desc;
+  });
+});
+// выбор размера поля
+document.querySelectorAll('.size-btn').forEach(function (b) {
+  b.addEventListener('click', function () {
+    sizeChoice = parseInt(b.getAttribute('data-size'), 10);
+    document.querySelectorAll('.size-btn').forEach(function (x) { x.classList.toggle('active', x === b); });
   });
 });
 
