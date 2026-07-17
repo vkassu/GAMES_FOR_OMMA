@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <!--
   Игра «Убеги от волка» — развивающая цель: ЛОГИКА, ПЛАНИРОВАНИЕ, пространственное мышление.
-  Пошаговая погоня в случайном лабиринте 10×10: герой (omma_hero) должен добежать
-  до домика 🏡, а зверь гонится за ним. Ходят по очереди, по 1 клетке.
+  Пошаговая погоня в случайном лабиринте 10×10 или 15×15: герой (omma_hero) должен
+  добежать до домика 🏡, а зверь гонится за ним. Ходят по очереди.
   Лабиринт: идеальный (DFS) + 1 комната 3×3 и 2 комнаты 2×2 + убраны все тупики;
   гарантированно есть минимум 2 непересекающихся пути от старта до финиша
   (проверка twoRoutes, иначе перегенерация). Три зверя (выбор на старте): волк
   (умный BFS-ход, тупит 20%), лиса (тупит всего 5%), кабан (тупит 25%, но за ход
-  может пронестись по прямой на сколько угодно клеток до стены, сам выбирая, где
-  затормозить). Зверь ловит, встав на клетку героя (или герой сам шагнул в него).
+  может пронестись по прямой до 3 клеток). Герой ходит в 8 сторон (в т.ч. по
+  диагонали через открытый угол), зверь — по 4. На поле 15×15 волк/лиса приходят
+  вдвоём, ящиков 2 (на 10×10 — 1). Ящики 📦 нельзя проходить, но можно толкать
+  (герой и звери) на 1 клетку, если сзади свободно; ящик не встаёт на чужую
+  клетку/финиш. У кабана стен на ~10% больше (но ≥2 путей к дому сохраняются).
+  Зверь ловит, встав на клетку героя (или герой сам шагнул в него).
   3 лабиринта за игру, поимка — мягкий повтор.
   Навигация и плюшки как в других играх: верхний бар, конфетти, копилка звёзд,
   имя в похвале, общие темы оформления.
@@ -123,7 +127,7 @@
   <div id="startScreen" class="screen">
     <div class="final-emoji" id="startEmoji">🐺</div>
     <h1 id="startTitle">Убеги от волка</h1>
-    <p class="lead">Зверь гонится за тобой по лабиринту! Добеги до домика 🏡 раньше, чем он тебя поймает. Ты шагаешь на клетку — и он шагает. Путей к домику всегда два, выбирай хитрее!</p>
+    <p class="lead">Зверь гонится за тобой по лабиринту! Добеги до домика 🏡 раньше, чем он тебя поймает. Ходить можно и по диагонали, а ящики 📦 — толкать (через них не пройти). Путей к домику всегда два, выбирай хитрее!</p>
     <div class="modes">
       <button class="mode-btn active" data-enemy="wolf">🐺 Волк</button>
       <button class="mode-btn" data-enemy="fox">🦊 Лиса</button>
@@ -135,7 +139,7 @@
       <button class="mode-btn size-btn" data-size="15">Поле 15×15</button>
     </div>
     <button class="btn" id="playBtn">Играть ▶</button>
-    <div class="hint">Ходи: стрелками на клавиатуре, свайпом по полю или кнопками-стрелками</div>
+    <div class="hint">Ходи в 8 сторон: кнопками ◤▲◥, свайпом или стрелками (диагональ — Q E Z C)</div>
   </div>
 
   <!-- Игра -->
@@ -145,8 +149,9 @@
       <canvas id="game"></canvas>
     </div>
     <div class="dpad">
-      <span class="empty"></span><button data-dir="up" aria-label="вверх">▲</button><span class="empty"></span>
-      <button data-dir="left" aria-label="влево">◀</button><button data-dir="down" aria-label="вниз">▼</button><button data-dir="right" aria-label="вправо">▶</button>
+      <button data-dir="ul" aria-label="влево-вверх">◤</button><button data-dir="up" aria-label="вверх">▲</button><button data-dir="ur" aria-label="вправо-вверх">◥</button>
+      <button data-dir="left" aria-label="влево">◀</button><span class="empty"></span><button data-dir="right" aria-label="вправо">▶</button>
+      <button data-dir="dl" aria-label="влево-вниз">◣</button><button data-dir="down" aria-label="вниз">▼</button><button data-dir="dr" aria-label="вправо-вниз">◢</button>
     </div>
   </div>
 
@@ -237,8 +242,9 @@ let sizeChoice = 10;           // выбранный размер поля (10 �
 let state = 'start';           // 'start' | 'play' | 'end'
 let busy = false, pausedUi = false;
 let mazeIndex = 0, movesTotal = 0, catches = 0;
-let player = { r: 0, c: 0 }, wolf = { r: 0, c: 0 }, finish = { r: 0, c: 0 };
-let playerStart = null, wolfStart = null;
+let player = { r: 0, c: 0 }, finish = { r: 0, c: 0 };
+let enemies = [], boxes = [];          // враги и ящики (могут быть несколько)
+let playerStart = null, enemyStarts = [], boxStarts = [];
 
 /* ===GEN=== генерация лабиринта (без DOM — тестируется отдельно) */
 // стены клетки: N=1, E=2, S=4, W=8 (бит стоит — стена есть)
@@ -249,6 +255,13 @@ const DIRS = {
   left:  { dr: 0, dc: -1, wall: 8 }
 };
 const OPP = { 1: 4, 2: 8, 4: 1, 8: 2 };
+// диагонали для героя: h/v — ключи двух ортогональных «ног» обхода угла
+const DIAG = {
+  ul: { dr: -1, dc: -1, h: 'left',  v: 'up'   },
+  ur: { dr: -1, dc: 1,  h: 'right', v: 'up'   },
+  dl: { dr: 1,  dc: -1, h: 'left',  v: 'down' },
+  dr: { dr: 1,  dc: 1,  h: 'right', v: 'down' }
+};
 let walls = [];
 let ROOMS = [];                // прямоугольники комнат последней генерации
 
@@ -370,12 +383,48 @@ function twoRoutes(s, f) {
   return d[f.r][f.c] !== -1;
 }
 
-// возвращает {start, finish, wolf} или null (тогда генерируем заново)
-function genMaze() {
-  for (let attempt = 0; attempt < 80; attempt++) {
+function degree(r, c) {
+  let d = 0; for (const k in DIRS) if (!(walls[r][c] & DIRS[k].wall)) d++; return d;
+}
+function fullyConnected() {
+  const d = bfsFrom(0, 0);
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (d[r][c] === -1) return false;
+  return true;
+}
+// добавить ~frac стен (для кабана): закрываем случайные открытые проходы, но
+// только пока не появляются тупики (degree<2) и лабиринт остаётся связным.
+// Гарантия «≥2 путей» проверяется позже в genMaze (twoRoutes → иначе перегенерация).
+function addWalls(frac) {
+  const edges = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (c + 1 < N && !(walls[r][c] & 2)) edges.push({ r: r, c: c, wall: 2 });
+    if (r + 1 < N && !(walls[r][c] & 4)) edges.push({ r: r, c: c, wall: 4 });
+  }
+  const total = 2 * N * (N - 1), wallCount = total - edges.length;
+  let toClose = Math.round(wallCount * frac);
+  for (let i = edges.length - 1; i > 0; i--) {   // перемешать
+    const j = Math.floor(Math.random() * (i + 1)); const t = edges[i]; edges[i] = edges[j]; edges[j] = t;
+  }
+  for (let i = 0; i < edges.length && toClose > 0; i++) {
+    const e = edges[i], nr = e.r + (e.wall === 4 ? 1 : 0), nc = e.c + (e.wall === 2 ? 1 : 0);
+    walls[e.r][e.c] |= e.wall; walls[nr][nc] |= OPP[e.wall];      // пробуем закрыть
+    if (degree(e.r, e.c) < 2 || degree(nr, nc) < 2 || !fullyConnected()) {
+      walls[e.r][e.c] &= ~e.wall; walls[nr][nc] &= ~OPP[e.wall];  // откат
+    } else { toClose--; }
+  }
+}
+
+// возвращает {start, finish, enemies:[...], boxes:[...]} или null (перегенерация)
+// opts: { extraWalls, enemyCount, boxCount }
+function genMaze(opts) {
+  const extraWalls = !!(opts && opts.extraWalls);
+  const enemyCount = (opts && opts.enemyCount) || 1;
+  const boxCount = (opts && opts.boxCount) || 0;
+  for (let attempt = 0; attempt < 140; attempt++) {
     genPerfect();
     placeRooms();
     braid();
+    if (extraWalls) addWalls(0.10);
     if (ROOMS.length !== 3) continue;
     // старт и финиш — концы диаметра лабиринта (двойной BFS)
     const d0 = bfsFrom(0, 0);
@@ -388,17 +437,54 @@ function genMaze() {
       if (dA[r][c] > dA[B.r][B.c]) B = { r: r, c: c };
     if (dA[B.r][B.c] < Math.floor(N * 0.8)) continue;   // старт и финиш подальше
     if (!twoRoutes(A, B)) continue;
-    // волк: подальше от героя, не на финише и не вплотную к нему
     const dB = bfsFrom(B.r, B.c);
-    let wolfPos = null;
-    for (let need = 7; need >= 5 && !wolfPos; need--) {
-      const cands = [];
-      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)
-        if (dA[r][c] >= need && dB[r][c] >= 2) cands.push({ r: r, c: c });
-      if (cands.length) wolfPos = cands[Math.floor(Math.random() * cands.length)];
+    // враги: каждый подальше от героя (dA), не на финише/вплотную (dB≥2), не друг на друге
+    const outEnemies = [];
+    let okE = true;
+    for (let i = 0; i < enemyCount && okE; i++) {
+      let pos = null;
+      for (let need = 7; need >= 5 && !pos; need--) {
+        const cands = [];
+        for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+          if (dA[r][c] < need || dB[r][c] < 2) continue;
+          if (r === A.r && c === A.c) continue;
+          let taken = false;
+          for (let e = 0; e < outEnemies.length; e++) if (outEnemies[e].r === r && outEnemies[e].c === c) taken = true;
+          if (!taken) cands.push({ r: r, c: c });
+        }
+        if (cands.length) pos = cands[Math.floor(Math.random() * cands.length)];
+      }
+      if (!pos) okE = false; else outEnemies.push(pos);
     }
-    if (!wolfPos) continue;
-    return { start: A, finish: B, wolf: wolfPos };
+    if (!okE) continue;
+    // ящики: на пустых клетках (не старт/финиш/враг/ящик, не вплотную к старту).
+    // Условие: даже если ВСЕ ящики считать стенами, до финиша всё равно можно дойти.
+    const outBoxes = [];
+    let okB = true;
+    for (let i = 0; i < boxCount && okB; i++) {
+      const blocked = new Set();
+      for (let b = 0; b < outBoxes.length; b++) blocked.add(outBoxes[b].r + ',' + outBoxes[b].c);
+      const cands = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        if (dA[r][c] < 2 || dB[r][c] < 1) continue;      // не старт, не рядом со стартом, не финиш
+        if (blocked.has(r + ',' + c)) continue;
+        let taken = false;
+        for (let e = 0; e < outEnemies.length; e++) if (outEnemies[e].r === r && outEnemies[e].c === c) taken = true;
+        if (!taken) cands.push({ r: r, c: c });
+      }
+      for (let i2 = cands.length - 1; i2 > 0; i2--) {
+        const j = Math.floor(Math.random() * (i2 + 1)); const t = cands[i2]; cands[i2] = cands[j]; cands[j] = t;
+      }
+      let placed = null;
+      for (let k = 0; k < cands.length; k++) {
+        const test = new Set(blocked); test.add(cands[k].r + ',' + cands[k].c);
+        const d = bfsFrom(A.r, A.c, test);
+        if (d[B.r][B.c] !== -1) { placed = cands[k]; break; }
+      }
+      if (!placed) okB = false; else outBoxes.push(placed);
+    }
+    if (!okB) continue;
+    return { start: A, finish: B, enemies: outEnemies, boxes: outBoxes };
   }
   return null;
 }
@@ -412,44 +498,95 @@ function openNeighbors(r, c) {
   return res;
 }
 
-// клетки, которые можно пройти по прямой в направлении d, до первой стены,
-// но не больше limit клеток (start не входит; порядок — от ближней к дальней)
+/* --- ящики и проверки движения --- */
+function boxAt(r, c) {
+  for (let i = 0; i < boxes.length; i++) if (boxes[i].r === r && boxes[i].c === c) return i;
+  return -1;
+}
+function someoneAt(r, c) {          // герой или любой враг на клетке
+  if (player.r === r && player.c === c) return true;
+  for (let i = 0; i < enemies.length; i++) if (enemies[i].r === r && enemies[i].c === c) return true;
+  return false;
+}
+function dirKeyOf(dr, dc) {
+  for (const k in DIRS) if (DIRS[k].dr === dr && DIRS[k].dc === dc) return k;
+  return null;
+}
+// толкнуть ящик, стоящий в клетке (fr+dir): двигаем его на ещё одну клетку.
+// Нельзя: сквозь стену, за край, на другой ящик, на финиш, на кого-то. true — толкнули.
+function tryPush(fr, fc, dirKey) {
+  const d = DIRS[dirKey];
+  const br = fr + d.dr, bc = fc + d.dc;      // клетка ящика
+  const bi = boxAt(br, bc);
+  if (bi < 0) return false;
+  const tr = br + d.dr, tc = bc + d.dc;      // куда толкаем
+  if (!inB(tr, tc)) return false;
+  if (walls[br][bc] & d.wall) return false;
+  if (boxAt(tr, tc) >= 0) return false;
+  if (tr === finish.r && tc === finish.c) return false;
+  if (someoneAt(tr, tc)) return false;
+  boxes[bi].r = tr; boxes[bi].c = tc;
+  return true;
+}
+function stepOpen(r, c, dirKey) { return !(walls[r][c] & DIRS[dirKey].wall); }
+// диагональный ход героя: разрешён, если хотя бы одна «Г-образная» дорожка вокруг
+// угла свободна (обе ноги без стен и без ящика), а в целевой клетке нет ящика.
+function canMoveDiag(r, c, key) {
+  const g = DIAG[key], tr = r + g.dr, tc = c + g.dc;
+  if (!inB(tr, tc) || boxAt(tr, tc) >= 0) return false;
+  const pathH = stepOpen(r, c, g.h) && boxAt(r, c + g.dc) < 0 && stepOpen(r, c + g.dc, g.v);
+  const pathV = stepOpen(r, c, g.v) && boxAt(r + g.dr, c) < 0 && stepOpen(r + g.dr, c, g.h);
+  return pathH || pathV;
+}
+
+// клетки прямого пробега в направлении d до первой стены ИЛИ ящика, максимум limit
 function dashCells(r, c, d, limit) {
   const cells = [];
   let cr = r, cc = c;
-  while (cells.length < limit && !(walls[cr][cc] & d.wall)) { cr += d.dr; cc += d.dc; cells.push({ r: cr, c: cc }); }
+  while (cells.length < limit && !(walls[cr][cc] & d.wall) && boxAt(cr + d.dr, cc + d.dc) < 0) {
+    cr += d.dr; cc += d.dc; cells.push({ r: cr, c: cc });
+  }
   return cells;
 }
 
-// ход зверя: умный (шаг по BFS к герою), но с вероятностью E.blunder «тупит»
-// (случайный шаг). Кабан (E.dash) за ход может пронестись по прямой на несколько
-// клеток, сам выбирая, где затормозить (до стены) — берём клетку на любой из
-// четырёх прямых, откуда до героя ближе всего.
-function wolfStep(pr, pc) {
-  const opts = openNeighbors(wolf.r, wolf.c);
+// ход одного зверя `en`: умный (шаг по BFS к герою, ящики — препятствия), но с
+// вероятностью E.blunder «тупит» (случайный шаг, при этом может толкнуть ящик).
+// Кабан (E.dash) несётся по прямой до стены/ящика, сам выбирая, где затормозить.
+function enemyStep(en, pr, pc) {
+  const opts = openNeighbors(en.r, en.c);
   if (!opts.length) return;
-  let target;
+  const boxSet = new Set();
+  for (let i = 0; i < boxes.length; i++) boxSet.add(boxes[i].r + ',' + boxes[i].c);
   if (Math.random() < E.blunder) {
-    target = opts[Math.floor(Math.random() * opts.length)];
-  } else {
-    const dist = bfsFrom(pr, pc);
-    // кандидаты остановки: у кабана — все клетки прямых пробегов, у остальных — соседи
-    let cands = [];
-    if (E.dash) {
-      for (const k in DIRS) cands = cands.concat(dashCells(wolf.r, wolf.c, DIRS[k], E.maxDash));
-    } else {
-      cands = opts;
-    }
-    let best = Infinity, bestCands = [];
-    for (let i = 0; i < cands.length; i++) {
-      const d = dist[cands[i].r][cands[i].c];
-      if (d === -1) continue;
-      if (d < best) { best = d; bestCands = [cands[i]]; }
-      else if (d === best) bestCands.push(cands[i]);
-    }
-    target = bestCands.length ? bestCands[Math.floor(Math.random() * bestCands.length)] : opts[0];
+    const t = opts[Math.floor(Math.random() * opts.length)];
+    if (boxAt(t.r, t.c) >= 0) {
+      if (tryPush(en.r, en.c, dirKeyOf(t.r - en.r, t.c - en.c))) { en.r = t.r; en.c = t.c; }
+    } else { en.r = t.r; en.c = t.c; }
+    return;
   }
-  wolf.r = target.r; wolf.c = target.c;
+  const dist = bfsFrom(pr, pc, boxSet);
+  let cands;
+  if (E.dash) {
+    cands = [];
+    for (const k in DIRS) cands = cands.concat(dashCells(en.r, en.c, DIRS[k], E.maxDash));
+  } else {
+    cands = opts.filter(function (o) { return boxAt(o.r, o.c) < 0; });
+  }
+  let best = Infinity, bestCands = [];
+  for (let i = 0; i < cands.length; i++) {
+    const d = dist[cands[i].r][cands[i].c];
+    if (d === -1) continue;
+    if (d < best) { best = d; bestCands = [cands[i]]; }
+    else if (d === best) bestCands.push(cands[i]);
+  }
+  let target;
+  if (bestCands.length) target = bestCands[Math.floor(Math.random() * bestCands.length)];
+  else {
+    const safe = opts.filter(function (o) { return boxAt(o.r, o.c) < 0; });
+    if (!safe.length) return;                 // окружён ящиками — стоит на месте
+    target = safe[0];
+  }
+  en.r = target.r; en.c = target.c;
 }
 /* ===/GEN=== */
 
@@ -458,12 +595,17 @@ function updateHud() {
 }
 
 function startMaze() {
-  const m = genMaze();
+  // на поле 15×15 волк/лиса приходят вдвоём; ящиков: 1 на 10×10, 2 на 15×15
+  const enemyCount = (N === 15 && (enemyType === 'wolf' || enemyType === 'fox')) ? 2 : 1;
+  const boxCount = (N === 15) ? 2 : 1;
+  const m = genMaze({ extraWalls: enemyType === 'boar', enemyCount: enemyCount, boxCount: boxCount });
   player = { r: m.start.r, c: m.start.c };
   finish = { r: m.finish.r, c: m.finish.c };
-  wolf   = { r: m.wolf.r,  c: m.wolf.c };
+  enemies = m.enemies.map(function (e) { return { r: e.r, c: e.c }; });
+  boxes   = m.boxes.map(function (b) { return { r: b.r, c: b.c }; });
   playerStart = { r: player.r, c: player.c };
-  wolfStart   = { r: wolf.r,  c: wolf.c };
+  enemyStarts = enemies.map(function (e) { return { r: e.r, c: e.c }; });
+  boxStarts   = boxes.map(function (b) { return { r: b.r, c: b.c }; });
   busy = false;
   updateHud();
   draw();
@@ -519,32 +661,49 @@ function draw() {
   ctx.textBaseline = 'middle';
   ctx.font = Math.round(CELL * 0.60) + 'px' + FF;
   ctx.fillText('🏡', finish.c * CELL + CELL / 2, finish.r * CELL + CELL / 2 + 1);
+  ctx.font = Math.round(CELL * 0.62) + 'px' + FF;
+  for (let i = 0; i < boxes.length; i++)
+    ctx.fillText('📦', boxes[i].c * CELL + CELL / 2, boxes[i].r * CELL + CELL / 2 + 1);
   ctx.font = Math.round(CELL * 0.66) + 'px' + FF;
   ctx.fillText(hero, player.c * CELL + CELL / 2, player.r * CELL + CELL / 2 + 1);
   ctx.font = Math.round(CELL * 0.72) + 'px' + FF;
-  ctx.fillText(E.emoji, wolf.c * CELL + CELL / 2, wolf.r * CELL + CELL / 2 + 1);
+  for (let i = 0; i < enemies.length; i++)
+    ctx.fillText(E.emoji, enemies[i].c * CELL + CELL / 2, enemies[i].r * CELL + CELL / 2 + 1);
 }
 
 /* ---------- Ход игры ---------- */
-function tryMove(dirKey) {
+function playerOnEnemy() {
+  for (let i = 0; i < enemies.length; i++) if (enemies[i].r === player.r && enemies[i].c === player.c) return true;
+  return false;
+}
+function tryMove(key) {
   if (state !== 'play' || busy || pausedUi) return;
-  const d = DIRS[dirKey];
-  if (!d) return;
-  if (walls[player.r][player.c] & d.wall) return;   // стена — ход не тратится
+  let nr, nc;
+  if (DIRS[key]) {                                   // ортогональный ход
+    const d = DIRS[key];
+    if (walls[player.r][player.c] & d.wall) return;  // стена — ход не тратится
+    nr = player.r + d.dr; nc = player.c + d.dc;
+    if (boxAt(nr, nc) >= 0 && !tryPush(player.r, player.c, key)) return;  // ящик не толкается
+  } else if (DIAG[key]) {                            // диагональный ход (без толкания)
+    if (!canMoveDiag(player.r, player.c, key)) return;
+    nr = player.r + DIAG[key].dr; nc = player.c + DIAG[key].dc;
+  } else return;
   ensureAudio();
-  player.r += d.dr; player.c += d.dc;
+  player.r = nr; player.c = nc;
   movesTotal++;
   playStep();
   updateHud();
   draw();
-  if (player.r === wolf.r && player.c === wolf.c) { caught(); return; }
+  if (playerOnEnemy()) { caught(); return; }
   if (player.r === finish.r && player.c === finish.c) { mazeDone(); return; }
   busy = true;
   setTimeout(function () {
-    wolfStep(player.r, player.c);
+    for (let i = 0; i < enemies.length; i++) {
+      enemyStep(enemies[i], player.r, player.c);
+      if (enemies[i].r === player.r && enemies[i].c === player.c) { draw(); busy = false; caught(); return; }
+    }
     draw();
     busy = false;
-    if (wolf.r === player.r && wolf.c === player.c) caught();
   }, 160);
 }
 
@@ -573,7 +732,8 @@ function caught() {
   playCatch();
   showMsg(E.emoji, 'Ой! ' + E.name + ' тебя поймал. Попробуй ещё раз — у тебя получится!', 'Ещё раз 💪', function () {
     player = { r: playerStart.r, c: playerStart.c };
-    wolf   = { r: wolfStart.r,  c: wolfStart.c };
+    enemies = enemyStarts.map(function (e) { return { r: e.r, c: e.c }; });
+    boxes   = boxStarts.map(function (b) { return { r: b.r, c: b.c }; });
     busy = false;
     draw();
   });
@@ -630,10 +790,14 @@ function showStart() {
 window.addEventListener('keydown', function (e) {
   if (state !== 'play') return;
   let dir = null;
-  if (e.code === 'ArrowUp' || e.code === 'KeyW') dir = 'up';
-  else if (e.code === 'ArrowDown' || e.code === 'KeyS') dir = 'down';
-  else if (e.code === 'ArrowLeft' || e.code === 'KeyA') dir = 'left';
-  else if (e.code === 'ArrowRight' || e.code === 'KeyD') dir = 'right';
+  if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Numpad8') dir = 'up';
+  else if (e.code === 'ArrowDown' || e.code === 'KeyS' || e.code === 'Numpad2') dir = 'down';
+  else if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'Numpad4') dir = 'left';
+  else if (e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Numpad6') dir = 'right';
+  else if (e.code === 'KeyQ' || e.code === 'Numpad7') dir = 'ul';
+  else if (e.code === 'KeyE' || e.code === 'Numpad9') dir = 'ur';
+  else if (e.code === 'KeyZ' || e.code === 'Numpad1') dir = 'dl';
+  else if (e.code === 'KeyC' || e.code === 'Numpad3') dir = 'dr';
   if (dir) { tryMove(dir); e.preventDefault(); }
 });
 
@@ -652,8 +816,14 @@ canvas.addEventListener('touchmove', function (e) { e.preventDefault(); }, { pas
 canvas.addEventListener('touchend', function (e) {
   const dx = e.changedTouches[0].clientX - tSX;
   const dy = e.changedTouches[0].clientY - tSY;
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
-  tryMove(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (Math.max(ax, ay) < 24) return;
+  // диагональ — если оба смещения заметны и близки по величине
+  const diag = Math.min(ax, ay) >= 24 && Math.min(ax, ay) > 0.5 * Math.max(ax, ay);
+  let key;
+  if (diag) key = (dy < 0 ? 'u' : 'd') + (dx < 0 ? 'l' : 'r');
+  else key = ax > ay ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+  tryMove(key);
 });
 
 /* ---------- Звук ---------- */
