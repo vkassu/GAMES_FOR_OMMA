@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
   Игра «Крестики-нолики» — развивающая цель: ЛОГИКА, ПЛАНИРОВАНИЕ, стратегия.
-  Классические ❌⭕. Три размера доски: 3×3 и 5×5 — победа за ТРИ в ряд,
-  4×4 — победа за ЧЕТЫРЕ в ряд (по горизонтали, вертикали или диагонали).
+  Классические ❌⭕. Четыре размера доски: 3×3 и 5×5 — победа за ТРИ в ряд,
+  4×4 и 6×6 — победа за ЧЕТЫРЕ в ряд (по горизонтали, вертикали или диагонали).
   Три режима:
     • «С другом» — двое игроков по очереди на одном экране.
     • «Против кошки» — лёгкий бот, ходит случайно.
@@ -70,8 +70,8 @@
   .size-btn {
     font-family: inherit; font-weight: 700; font-size: clamp(15px, 3.6vw, 18px);
     border: 3px solid #e5e7eb; background: #fff; color: #4b5563;
-    border-radius: 14px; padding: 8px 16px; cursor: pointer;
-    touch-action: manipulation; min-width: 74px;
+    border-radius: 14px; padding: 8px 14px; cursor: pointer;
+    touch-action: manipulation; min-width: 62px;
   }
   .size-btn.active { border-color: var(--accent); color: var(--accent); background: #eef2ff; }
   .size-btn:active { transform: scale(0.96); }
@@ -99,6 +99,11 @@
     gap: 6px;
     width: min(400px, 94vw);
   }
+  .board[data-n="6"] {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 5px;
+    width: min(420px, 96vw);
+  }
   .cell {
     background: #fff; border: none; border-radius: 20px;
     font-size: clamp(48px, 14vw, 72px); line-height: 1;
@@ -117,6 +122,11 @@
     font-size: clamp(22px, 7vw, 38px);
     border-radius: 14px;
     box-shadow: 0 4px 10px rgba(99,102,241,0.12);
+  }
+  .board[data-n="6"] .cell {
+    font-size: clamp(18px, 6vw, 32px);
+    border-radius: 12px;
+    box-shadow: 0 3px 8px rgba(99,102,241,0.11);
   }
   .cell:disabled { cursor: default; }
   .cell.win { background: var(--win); animation: winpulse 0.55s ease; }
@@ -171,13 +181,14 @@
       <button class="size-btn" data-size="3">3×3</button>
       <button class="size-btn" data-size="4">4×4</button>
       <button class="size-btn" data-size="5">5×5</button>
+      <button class="size-btn" data-size="6">6×6</button>
     </div>
     <div class="levels">
       <button class="btn lvl-btn" data-mode="friend">👫 С другом</button>
       <button class="btn lvl-btn" data-mode="cat">🐱 Против кошки</button>
       <button class="btn lvl-btn" data-mode="fox">🦊 Против лисы</button>
     </div>
-    <div class="hint">На 3×3 и 5×5 нужны ТРИ подряд, на 4×4 — ЧЕТЫРЕ подряд. Первым ходит ❌.</div>
+    <div class="hint">3×3 и 5×5 → ТРИ подряд · 4×4 и 6×6 → ЧЕТЫРЕ подряд · первым ходит ❌</div>
   </div>
 
   <!-- Игровой экран -->
@@ -262,9 +273,9 @@ const MODES = {
   fox:    { name: 'Против лисы',  emoji: '🦊', foeName: 'лиса',   isBot: true,  hard: true  }
 };
 
-let K = 3;                                  // длина выигрышной линии (3 для 3×3/5×5, 4 для 4×4)
-let N = 3;                                  // размер доски (3, 4 или 5)
-function kForSize(n) { return n === 4 ? 4 : 3; }
+let K = 3;                                  // длина выигрышной линии (3 для 3×3/5×5, 4 для 4×4/6×6)
+let N = 3;                                  // размер доски (3, 4, 5 или 6)
+function kForSize(n) { return (n === 4 || n === 6) ? 4 : 3; }
 let WIN_LINES = [];                         // все выигрышные линии, считаются по N,K
 let cellEls = [];                           // кнопки-клетки, создаются в buildBoard()
 
@@ -279,7 +290,7 @@ let roundTimer = null;
 let selectedSize = 3;
 try {
   const s = parseInt(localStorage.getItem('krestiki_size') || '3', 10);
-  selectedSize = (s === 4 || s === 5) ? s : 3;
+  selectedSize = (s === 4 || s === 5 || s === 6) ? s : 3;
 } catch (e) {}
 
 function symbolFor(p) { return p === 1 ? '❌' : '⭕'; }
