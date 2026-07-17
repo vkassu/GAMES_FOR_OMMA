@@ -2,12 +2,14 @@
 <!--
   Игра «Убеги от волка» — развивающая цель: ЛОГИКА, ПЛАНИРОВАНИЕ, пространственное мышление.
   Пошаговая погоня в случайном лабиринте 10×10: герой (omma_hero) должен добежать
-  до домика 🏡, волк 🐺 гонится за ним. Ходят по очереди, по 1 клетке.
+  до домика 🏡, а зверь гонится за ним. Ходят по очереди, по 1 клетке.
   Лабиринт: идеальный (DFS) + 1 комната 3×3 и 2 комнаты 2×2 + убраны все тупики;
   гарантированно есть минимум 2 непересекающихся пути от старта до финиша
-  (проверка twoRoutes, иначе перегенерация). Волк умный (BFS к игроку), но
-  с вероятностью 20% «тупит» (случайный ход). Волк ловит, встав на клетку героя
-  (или герой сам шагнул в волка). 3 лабиринта за игру, поимка — мягкий повтор.
+  (проверка twoRoutes, иначе перегенерация). Три зверя (выбор на старте): волк
+  (умный BFS-ход, тупит 20%), лиса (тупит всего 5%), кабан (тупит 25%, но за ход
+  может пронестись по прямой на сколько угодно клеток до стены, сам выбирая, где
+  затормозить). Зверь ловит, встав на клетку героя (или герой сам шагнул в него).
+  3 лабиринта за игру, поимка — мягкий повтор.
   Навигация и плюшки как в других играх: верхний бар, конфетти, копилка звёзд,
   имя в похвале, общие темы оформления.
   Чистый HTML/CSS/JS, один файл, офлайн, работает по file:// и на iOS.
@@ -56,6 +58,14 @@
   .btn.secondary { background: #fff; color: var(--accent); box-shadow: 0 6px 16px rgba(22,163,74,0.16); }
   @media (hover: hover) { .btn:hover { filter: brightness(1.05); } }
   .btn:active { transform: scale(0.97); }
+
+  .modes { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; }
+  .mode-btn { font-family: inherit; font-weight: 700; font-size: clamp(15px, 3.6vw, 19px);
+    border: none; border-radius: 16px; padding: 12px 16px; background: #fff; color: var(--accent);
+    cursor: pointer; box-shadow: 0 6px 16px rgba(22,163,74,0.16); touch-action: manipulation; }
+  .mode-btn.active { background: var(--accent); color: #fff; box-shadow: 0 8px 20px rgba(22,163,74,0.30); }
+  .mode-btn:active { transform: scale(0.96); }
+  .mode-desc { font-size: clamp(14px, 3.4vw, 17px); color: #6b7280; font-weight: 700; min-height: 24px; margin: 0 0 18px; }
 
   .topbar { width: 100%; max-width: 460px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
   .navbtn { font-family: inherit; font-weight: 700; font-size: clamp(13px, 3.2vw, 16px); border: none; background: #fff; color: var(--accent); border-radius: 999px; padding: 9px 14px; cursor: pointer; text-decoration: none; box-shadow: 0 4px 12px rgba(22,163,74,0.14); touch-action: manipulation; white-space: nowrap; }
@@ -111,9 +121,15 @@
 
   <!-- Старт -->
   <div id="startScreen" class="screen">
-    <div class="final-emoji">🐺</div>
+    <div class="final-emoji" id="startEmoji">🐺</div>
     <h1>Убеги от волка</h1>
-    <p class="lead">Волк гонится за тобой по лабиринту! Добеги до домика 🏡 раньше, чем он тебя поймает. Ты шагаешь на клетку — и волк шагает. Путей к домику всегда два, выбирай хитрее!</p>
+    <p class="lead">Зверь гонится за тобой по лабиринту! Добеги до домика 🏡 раньше, чем он тебя поймает. Ты шагаешь на клетку — и он шагает. Путей к домику всегда два, выбирай хитрее!</p>
+    <div class="modes">
+      <button class="mode-btn active" data-enemy="wolf">🐺 Волк</button>
+      <button class="mode-btn" data-enemy="fox">🦊 Лиса</button>
+      <button class="mode-btn" data-enemy="boar">🐗 Кабан</button>
+    </div>
+    <div class="mode-desc" id="modeDesc">Волк умный, но иногда путается.</div>
     <button class="btn" id="playBtn">Играть ▶</button>
     <div class="hint">Ходи: стрелками на клавиатуре, свайпом по полю или кнопками-стрелками</div>
   </div>
@@ -204,6 +220,14 @@ let hero = '🦄';
 try { hero = localStorage.getItem('omma_hero') || '🦄'; } catch (e) {}
 
 const MAZES = 3;               // лабиринтов за игру
+// звери-преследователи: blunder — вероятность «тупить» (случайный ход);
+// dash=true — умеет нестись по прямой до стены (кабан)
+const ENEMIES = {
+  wolf: { emoji: '🐺', name: 'Волк',  blunder: 0.20, dash: false, desc: 'Волк умный, но иногда путается.' },
+  fox:  { emoji: '🦊', name: 'Лиса',  blunder: 0.05, dash: false, desc: 'Лиса самая хитрая — почти не ошибается!' },
+  boar: { emoji: '🐗', name: 'Кабан', blunder: 0.25, dash: true,  desc: 'Кабан часто мажет, зато мчится по прямой до стены.' }
+};
+let enemyType = 'wolf', E = ENEMIES.wolf;
 let state = 'start';           // 'start' | 'play' | 'end'
 let busy = false, pausedUi = false;
 let mazeIndex = 0, movesTotal = 0, catches = 0;
@@ -382,29 +406,49 @@ function openNeighbors(r, c) {
   return res;
 }
 
-// ход волка: умный (шаг по BFS к герою), но с вероятностью 20% «тупит»
+// клетки, которые можно пройти по прямой в направлении d, до первой стены
+// (start не входит; порядок — от ближней к дальней)
+function dashCells(r, c, d) {
+  const cells = [];
+  let cr = r, cc = c;
+  while (!(walls[cr][cc] & d.wall)) { cr += d.dr; cc += d.dc; cells.push({ r: cr, c: cc }); }
+  return cells;
+}
+
+// ход зверя: умный (шаг по BFS к герою), но с вероятностью E.blunder «тупит»
+// (случайный шаг). Кабан (E.dash) за ход может пронестись по прямой на несколько
+// клеток, сам выбирая, где затормозить (до стены) — берём клетку на любой из
+// четырёх прямых, откуда до героя ближе всего.
 function wolfStep(pr, pc) {
   const opts = openNeighbors(wolf.r, wolf.c);
+  if (!opts.length) return;
   let target;
-  if (Math.random() < 0.2) {
+  if (Math.random() < E.blunder) {
     target = opts[Math.floor(Math.random() * opts.length)];
   } else {
     const dist = bfsFrom(pr, pc);
-    let best = Infinity, bestOpts = [];
-    for (let i = 0; i < opts.length; i++) {
-      const d = dist[opts[i].r][opts[i].c];
-      if (d === -1) continue;
-      if (d < best) { best = d; bestOpts = [opts[i]]; }
-      else if (d === best) bestOpts.push(opts[i]);
+    // кандидаты остановки: у кабана — все клетки прямых пробегов, у остальных — соседи
+    let cands = [];
+    if (E.dash) {
+      for (const k in DIRS) cands = cands.concat(dashCells(wolf.r, wolf.c, DIRS[k]));
+    } else {
+      cands = opts;
     }
-    target = bestOpts.length ? bestOpts[Math.floor(Math.random() * bestOpts.length)] : opts[0];
+    let best = Infinity, bestCands = [];
+    for (let i = 0; i < cands.length; i++) {
+      const d = dist[cands[i].r][cands[i].c];
+      if (d === -1) continue;
+      if (d < best) { best = d; bestCands = [cands[i]]; }
+      else if (d === best) bestCands.push(cands[i]);
+    }
+    target = bestCands.length ? bestCands[Math.floor(Math.random() * bestCands.length)] : opts[0];
   }
   wolf.r = target.r; wolf.c = target.c;
 }
 /* ===/GEN=== */
 
 function updateHud() {
-  progressEl.textContent = '🐺 Лабиринт ' + (mazeIndex + 1) + ' из ' + MAZES + ' · Ходов: ' + movesTotal;
+  progressEl.textContent = E.emoji + ' Лабиринт ' + (mazeIndex + 1) + ' из ' + MAZES + ' · Ходов: ' + movesTotal;
 }
 
 function startMaze() {
@@ -421,6 +465,7 @@ function startMaze() {
 
 function startGame() {
   ensureAudio();
+  E = ENEMIES[enemyType];
   mazeIndex = 0; movesTotal = 0; catches = 0;
   state = 'play';
   startScreen.classList.add('hidden');
@@ -469,7 +514,7 @@ function draw() {
   ctx.font = '24px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
   ctx.fillText(hero, player.c * CELL + CELL / 2, player.r * CELL + CELL / 2 + 1);
   ctx.font = '26px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif';
-  ctx.fillText('🐺', wolf.c * CELL + CELL / 2, wolf.r * CELL + CELL / 2 + 1);
+  ctx.fillText(E.emoji, wolf.c * CELL + CELL / 2, wolf.r * CELL + CELL / 2 + 1);
 }
 
 /* ---------- Ход игры ---------- */
@@ -518,7 +563,7 @@ msgBtn.addEventListener('click', function () {
 function caught() {
   catches++;
   playCatch();
-  showMsg('🐺', 'Ой! Волк тебя поймал. Попробуй ещё раз — у тебя получится!', 'Ещё раз 💪', function () {
+  showMsg(E.emoji, 'Ой! ' + E.name + ' тебя поймал. Попробуй ещё раз — у тебя получится!', 'Ещё раз 💪', function () {
     player = { r: playerStart.r, c: playerStart.c };
     wolf   = { r: wolfStart.r,  c: wolfStart.c };
     busy = false;
@@ -551,7 +596,7 @@ function showEnd() {
     summary = 'Ни разу не попался волку — все ' + MAZES + ' лабиринта твои!';
   } else if (catches <= 2) {
     stars = '⭐⭐'; title = 'Здорово!';
-    summary = 'Волк ловил тебя ' + catches + ' ' + razWord(catches) + ', но ты всё равно добежал!';
+    summary = E.name + ' ловил тебя ' + catches + ' ' + razWord(catches) + ', но ты всё равно добежал!';
   } else {
     stars = '⭐'; title = 'Молодец!';
     summary = 'Было непросто, но ты прошёл все лабиринты!';
@@ -560,7 +605,7 @@ function showEnd() {
   endTitleEl.textContent = nm ? title.replace(/!$/, ', ' + nm + '!') : title;
   starsEl.textContent = stars;
   endSummaryEl.textContent = summary;
-  scoreLineEl.textContent = 'Ходов: ' + movesTotal + ' · Волк ловил: ' + catches;
+  scoreLineEl.textContent = E.name + ' · Ходов: ' + movesTotal + ' · Ловил: ' + catches;
   if (window.fireConfetti) fireConfetti();
   if (window.awardStars) awardStars('volk', stars.length);
 }
@@ -646,6 +691,19 @@ document.getElementById('cfNo').addEventListener('click', function () {
 });
 
 function midGame() { return state === 'play' && (mazeIndex > 0 || movesTotal > 0); }
+
+// выбор зверя на стартовом экране
+const startEmoji = document.getElementById('startEmoji');
+const modeDesc = document.getElementById('modeDesc');
+document.querySelectorAll('.mode-btn').forEach(function (b) {
+  b.addEventListener('click', function () {
+    enemyType = b.getAttribute('data-enemy');
+    E = ENEMIES[enemyType];
+    document.querySelectorAll('.mode-btn').forEach(function (x) { x.classList.toggle('active', x === b); });
+    startEmoji.textContent = E.emoji;
+    modeDesc.textContent = E.desc;
+  });
+});
 
 document.getElementById('playBtn').addEventListener('click', startGame);
 document.getElementById('againBtn').addEventListener('click', startGame);
