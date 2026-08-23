@@ -98,6 +98,11 @@ header{
 .chip i{width:14px; height:14px; border-radius:4px; display:inline-block; flex:0 0 auto}
 .chip u{text-decoration:none; color:var(--muted); font-size:11px}
 .chip.on u{color:#cbd5e1}
+.nav{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+.nav a{
+  text-decoration:none; color:#334155; background:#f1f5f9; border:1px solid var(--line);
+  border-radius:999px; padding:6px 12px; font-size:13px;
+}
 .src{margin-top:8px; font-size:11px; color:var(--muted); line-height:1.4}
 .tip{font-size:12.5px; color:#475569; margin-bottom:8px; line-height:1.35}
 @media (max-width:760px) and (orientation:portrait){
@@ -163,6 +168,7 @@ header{
   </div>
   <div class="tip">Нажми на страну — покажу её валюту. Нажми на группу — подсвечу все страны с такой валютой.</div>
   <div class="chips" id="chips"></div>
+  <div class="nav"><a href="index.html">🏠 К играм</a><a href="yazyki-mira.html">🗣️ Языки мира</a></div>
   <div class="src">Границы: Natural Earth (1:50m). Валюты: ISO 4217, состояние на август 2026 (в т.ч. евро в Болгарии с 01.01.2026, ZiG в Зимбабве, карибский гульден на Кюрасао и Синт-Мартене).</div>
 </div>
 
@@ -379,9 +385,9 @@ function showCountry(i){
     body += '<div class="curBig"><span class="curDot" style="background:'+NONE+'"></span><span class="curName">валюты нет</span></div>';
   }
   if(f[3]) body += '<div class="note">'+esc(f[3])+'</div>';
-  if(g){
-    var same = [];
-    for(var m=0;m<F.length;m++) if(grpOf(m) === g) same.push(m);
+  var same = [];
+  if(g) for(var m=0;m<F.length;m++) if(grpOf(m) === g) same.push(m);
+  if(same.length > 1){
     same.sort(function(a,b){ return F[a][0].localeCompare(F[b][0], 'ru'); });
     body += '<div class="listTtl">Группа «'+esc(g)+'» — '+countries(same.length)+'</div><div class="cList">';
     for(var q=0;q<same.length;q++){
